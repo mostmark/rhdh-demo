@@ -6,6 +6,8 @@ spec:
   flavours:
     - name: intelligent-assistant      # on by default in 2.1; no AI backend in this demo
       enabled: false
+    - name: orchestrator               # plugins + SonataFlowPlatform (Data Index, Job Service)
+      enabled: {{ .Values.components.orchestrator | default false }}
   application:
     route:
       host: developer-hub.{{ .Values.appsDomain }}

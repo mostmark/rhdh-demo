@@ -1,0 +1,4 @@
+apiVersion: v2
+name: orchestrator-infra
+description: OpenShift Serverless + Serverless Logic for the Developer Hub Orchestrator (validated versions for RHDH 2.1)
+version: 0.1.0

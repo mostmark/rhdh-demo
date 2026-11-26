@@ -1,0 +1,8 @@
+appsDomain: ""
+components: {}
+# Validated with RHDH 2.1 / Orchestrator plugin 2.1.0: Serverless 1.37.x, Serverless Logic 1.39.2
+serverless:
+  channel: stable-1.37
+logic:
+  channel: stable
+  startingCSV: logic-operator.v1.39.2

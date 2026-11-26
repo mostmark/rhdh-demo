@@ -1,0 +1,4 @@
+apiVersion: v2
+name: orchestrator-workflows
+description: Sample Orchestrator workflows (prebuilt images, gitops profile)
+version: 0.1.0

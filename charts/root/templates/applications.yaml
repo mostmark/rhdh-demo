@@ -6,7 +6,11 @@
   (dict "name" "keycloak-config" "enabled" .Values.components.keycloakConfig "wave" "1" "path" "components/keycloak-config" "helm" true  "ns" "keycloak")
   (dict "name" "gitops-config"   "enabled" .Values.components.gitopsConfig   "wave" "1" "path" "components/gitops-config"   "helm" true  "ns" "openshift-gitops")
   (dict "name" "ci-triggers"     "enabled" .Values.components.ciTriggers     "wave" "1" "path" "components/ci-triggers"     "helm" true  "ns" "rhdh-demo-ci")
+  (dict "name" "orchestrator-infra"     "enabled" .Values.components.orchestrator "wave" "1" "path" "components/orchestrator-infra"     "helm" true "ns" "openshift-serverless")
+  (dict "name" "devspaces"              "enabled" .Values.components.devSpaces    "wave" "1" "path" "components/devspaces"              "helm" true "ns" "openshift-devspaces")
+  (dict "name" "quay"                   "enabled" .Values.components.quay         "wave" "1" "path" "components/quay"                   "helm" true "ns" "quay")
   (dict "name" "developer-hub"   "enabled" .Values.components.developerHub   "wave" "3" "path" "components/developer-hub"   "helm" true  "ns" "rhdh")
+  (dict "name" "orchestrator-workflows" "enabled" .Values.components.orchestrator "wave" "4" "path" "components/orchestrator-workflows" "helm" true "ns" "rhdh")
 }}
 {{- range $apps }}
 {{- if .enabled }}
@@ -32,6 +36,7 @@ spec:
     helm:
       valuesObject:
         appsDomain: {{ $root.Values.appsDomain }}
+        components: {{ $root.Values.components | toJson }}
     {{- end }}
   syncPolicy:
     automated: {prune: true, selfHeal: true}

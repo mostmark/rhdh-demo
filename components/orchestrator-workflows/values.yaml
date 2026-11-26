@@ -1,0 +1,7 @@
+appsDomain: ""
+components: {}
+backstageName: developer-hub         # the Backstage CR: its PostgreSQL holds the workflow data
+# greeting from github.com/rhdhorchestrator/serverless-workflows (workflows/greeting);
+# the newest prebuilt image is tagged osl_1_38 (no osl_1_39 build yet).
+greeting:
+  image: quay.io/orchestrator/serverless-workflow-greeting@sha256:2b07223ff8bd362516c8f0531a89b5e809df6bf84618dfccee1be2965b24d83a

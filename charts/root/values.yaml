@@ -11,6 +11,11 @@ components:
   ciTriggers: true        # wave 1: Tekton EventListener: GitLab pushes start service pipelines
   demoLayer: true         # wave 2: Application for the in-cluster GitLab repo demo/rhdh-demo-config
   developerHub: true      # wave 3: Backstage CR, base app-config, plugins, Kubernetes reader
+  # phase 2
+  orchestrator: true      # wave 1: Serverless + Serverless Logic operators, Knative; flavour in the
+                          # Backstage CR; wave 4: sample workflow greeting
+  devSpaces: false        # wave 1: Dev Spaces operator + CheCluster
+  quay: false             # wave 1: Quay registry (demo-grade, local storage) + Quay plugins
 
 demoLayer:
   repoPath: demo/rhdh-demo-config
