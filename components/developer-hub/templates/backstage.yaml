@@ -15,6 +15,12 @@ spec:
         - name: app-config-demo        # from the demo layer (in-cluster GitLab)
     dynamicPluginsConfigMapName: dynamic-plugins
     extraEnvs:
+      envs:
+        # The backend bootstraps global-agent (corporate proxy support), which by default
+        # replaces every custom HTTPS agent, so the Kubernetes plugin's caFile and
+        # skipTLSVerify are lost. With 'false' it only applies to requests without an agent.
+        - name: GLOBAL_AGENT_FORCE_GLOBAL_AGENT
+          value: "false"
       secrets:
         - name: rhdh-secrets             # created by bootstrap.sh
         - name: rhdh-integrations        # GitLab and Argo CD tokens, filled by the seed Jobs
