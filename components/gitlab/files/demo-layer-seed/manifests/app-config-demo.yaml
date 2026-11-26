@@ -4,7 +4,8 @@ metadata:
   name: app-config-demo
   namespace: rhdh
 data:
-  app-config.yaml: |
+  # unique key: it becomes a file next to the platform's app-config-base.yaml
+  app-config-demo.yaml: |
     app:
       title: Developer Hub Demo
     catalog:

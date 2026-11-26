@@ -7,6 +7,8 @@ data:
   dynamic-plugins.yaml: {{ .Files.Get "files/dynamic-plugins.yaml" | quote }}
 ---
 # Platform defaults. The demo layer's app-config-demo is loaded after this and wins.
+# RHDH 2.1 plugin defaults (catalog index) also read env vars, e.g. GITLAB_HOST,
+# K8S_CLUSTER_*, KEYCLOAK_*; the explicit values here override them.
 # Secrets come from environment variables (rhdh-secrets, rhdh-integrations, the
 # Kubernetes reader token); Developer Hub reaches other tools through their routes,
 # because its NetworkPolicies only allow egress on 443/6443.
@@ -15,7 +17,9 @@ kind: ConfigMap
 metadata:
   name: app-config-base
 data:
-  app-config.yaml: |
+  # The key becomes the file name under /opt/app-root/src/: every app-config ConfigMap
+  # referenced by the Backstage CR needs a unique key, or one file overwrites the other.
+  app-config-base.yaml: |
     app:
       baseUrl: https://{{ $host }}
     backend:
@@ -56,7 +60,7 @@ data:
               timeout: {minutes: 5}
               initialDelay: {seconds: 15}
         gitlab:
-          development:
+          default:                       # same id as the plugin's default config, so this overrides it
             host: gitlab.{{ .Values.appsDomain }}
             group: {{ .Values.gitlabDiscoveryGroup }}
             entityFilename: catalog-info.yaml
