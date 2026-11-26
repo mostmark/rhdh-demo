@@ -16,6 +16,11 @@ Developer Hub restarts automatically when `manifests/app-config-demo.yaml` chang
   `demo-apps` project; it fills the Argo CD, Topology, Kubernetes and Tekton tabs of the
   `hello-service` component. Delete both to remove it.
 
+- `templates/`: software templates (`templates/all.yaml` is registered in the app-config).
+  `web-service` creates a repo in GitLab group `development` with a Tekton pipeline and
+  Kubernetes manifests in `deploy/`; the platform's ApplicationSet `service-apps` deploys
+  every such repo to `demo-<name>`, and every push to `main` runs the pipeline.
+
 The bootstrap's seed Job keeps this repo up to date with the platform's seed content
 only as long as every commit here is a seed commit. Once you commit yourself, the seed
 leaves the repo alone.

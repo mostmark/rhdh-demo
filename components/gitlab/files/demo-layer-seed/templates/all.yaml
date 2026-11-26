@@ -1,0 +1,8 @@
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  name: demo-templates
+  description: Software templates of this demo
+spec:
+  targets:
+    - ./web-service/template.yaml

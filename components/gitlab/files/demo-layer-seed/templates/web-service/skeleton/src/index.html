@@ -1,0 +1,11 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>${{ values.name }}</title>
+<style>body{font-family:system-ui,sans-serif;margin:4rem;color:#1f1f1f}code{background:#f2f2f2;padding:2px 6px}</style>
+</head>
+<body>
+  <h1>${{ values.name }}</h1>
+  <p>${{ values.description }}</p>
+  <p>Built by Tekton, deployed by Argo CD to <code>${{ values.namespace }}</code>.</p>
+</body>
+</html>

@@ -1,0 +1,86 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: web-service
+  title: New web service
+  description: >-
+    A containerised web service with its own GitLab repository, a Tekton pipeline that
+    builds the image on every push, and a GitOps deployment by Argo CD.
+  tags: [recommended, tekton, argocd, httpd]
+spec:
+  owner: group:default/platform-team
+  type: service
+  parameters:
+    - title: Service
+      required: [name, owner]
+      properties:
+        name:
+          title: Name
+          type: string
+          description: Lowercase letters, digits and dashes. Becomes the repository, the Argo CD application and the namespace demo-<name>.
+          pattern: '^[a-z][a-z0-9-]{1,22}[a-z0-9]$'
+          ui:autofocus: true
+        description:
+          title: Description
+          type: string
+          default: A new web service
+        owner:
+          title: Owner
+          type: string
+          description: The team that owns the service
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: Group
+        system:
+          title: System
+          type: string
+          description: The system the service belongs to (optional)
+          ui:field: EntityPicker
+          ui:options:
+            catalogFilter:
+              kind: System
+  steps:
+    - id: fetch
+      name: Generate the service
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          name: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          system: ${{ parameters.system }}
+          namespace: demo-${{ parameters.name }}
+          appsDomain: __APPS_DOMAIN__
+          gitUrl: https://gitlab.__APPS_DOMAIN__/development/${{ parameters.name }}.git
+    - id: publish
+      name: Create the GitLab repository
+      action: publish:gitlab
+      input:
+        repoUrl: gitlab.__APPS_DOMAIN__?owner=development&repo=${{ parameters.name }}
+        repoVisibility: public
+        defaultBranch: main
+        description: ${{ parameters.description }}
+    - id: register
+      name: Register in the catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+  output:
+    text:
+      - title: What happens next
+        content: |
+          Argo CD picks up the repository within a minute (ApplicationSet `service-apps`),
+          creates namespace `demo-${{ parameters.name }}`, runs the first build and deploys
+          it. Every push to `main` starts the pipeline again. Follow it on the component's
+          **Deployment** tab (Tekton, Topology, Argo CD).
+    links:
+      - title: Repository
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}
+      - title: Argo CD application
+        url: https://openshift-gitops-server-openshift-gitops.__APPS_DOMAIN__/applications/openshift-gitops/${{ parameters.name }}

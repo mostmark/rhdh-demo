@@ -5,3 +5,7 @@ image: registry.access.redhat.com/ubi9/python-312:latest
 # Namespace.
 demoApps:
   namespacePattern: "demo-*"
+# Repos in this GitLab group with a deploy/ folder get an Argo CD Application each
+# (ApplicationSet service-apps): namespace demo-<repo>, project demo-apps.
+serviceApps:
+  group: development

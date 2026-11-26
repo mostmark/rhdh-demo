@@ -1,0 +1,141 @@
+# CI: clone, build the image with buildah, push it to the cluster registry, roll out.
+# Started for every push to main (GitLab system hook -> EventListener in rhdh-demo-ci) and
+# once by Argo CD for the first deployment (Job below).
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: ${{ values.name }}-ci
+  labels:
+    backstage.io/kubernetes-id: ${{ values.name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  params:
+    - {name: git-url, type: string, default: "${{ values.gitUrl }}"}
+    - {name: git-revision, type: string, default: main}
+  workspaces:
+    - name: source
+  tasks:
+    - name: fetch-source
+      taskRef:
+        resolver: cluster
+        params:
+          - {name: kind, value: task}
+          - {name: name, value: git-clone}
+          - {name: namespace, value: openshift-pipelines}
+      params:
+        - {name: URL, value: $(params.git-url)}
+        - {name: REVISION, value: $(params.git-revision)}
+      workspaces:
+        - {name: output, workspace: source}
+    - name: build-image
+      runAfter: [fetch-source]
+      taskRef:
+        resolver: cluster
+        params:
+          - {name: kind, value: task}
+          - {name: name, value: buildah}
+          - {name: namespace, value: openshift-pipelines}
+      params:
+        - {name: IMAGE, value: image-registry.openshift-image-registry.svc:5000/${{ values.namespace }}/${{ values.name }}:latest}
+        - {name: DOCKERFILE, value: ./Containerfile}
+      workspaces:
+        - {name: source, workspace: source}
+    - name: deploy
+      runAfter: [build-image]
+      taskRef:
+        resolver: cluster
+        params:
+          - {name: kind, value: task}
+          - {name: name, value: openshift-client}
+          - {name: namespace, value: openshift-pipelines}
+      params:
+        - name: SCRIPT
+          value: |
+            if oc get deployment/${{ values.name }} >/dev/null 2>&1; then
+              oc rollout restart deployment/${{ values.name }}
+              oc rollout status deployment/${{ values.name }} --timeout=5m
+            else
+              echo "first build: Argo CD creates the Deployment next"
+            fi
+---
+# First build, before Argo CD creates the Deployment (sync wave 2): starts a run and waits.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: first-build
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: first-build
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+rules:
+  - {apiGroups: [tekton.dev], resources: [pipelineruns], verbs: [create, get, list, watch]}
+  - {apiGroups: [""], resources: [serviceaccounts], verbs: [get]}
+  - {apiGroups: [image.openshift.io], resources: [imagestreams], verbs: [get]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: first-build
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: first-build}
+subjects: [{kind: ServiceAccount, name: first-build}]
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: first-build
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 1800
+  template:
+    spec:
+      serviceAccountName: first-build
+      restartPolicy: Never
+      containers:
+        - name: start
+          image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              if oc get imagestream ${{ values.name }} >/dev/null 2>&1; then
+                echo "image exists; later builds start on git push"; exit 0
+              fi
+              echo "waiting for the pipeline service account"
+              until oc get serviceaccount pipeline >/dev/null 2>&1; do sleep 3; done
+              run=$(oc create -o name -f - <<'RUN'
+              apiVersion: tekton.dev/v1
+              kind: PipelineRun
+              metadata:
+                generateName: ${{ values.name }}-ci-
+                labels:
+                  backstage.io/kubernetes-id: ${{ values.name }}
+                  tekton.dev/pipeline: ${{ values.name }}-ci
+              spec:
+                pipelineRef: {name: ${{ values.name }}-ci}
+                taskRunTemplate: {serviceAccountName: pipeline}
+                workspaces:
+                  - name: source
+                    volumeClaimTemplate:
+                      spec:
+                        accessModes: [ReadWriteOnce]
+                        resources: {requests: {storage: 1Gi}}
+              RUN
+              )
+              echo "started $run"
+              oc wait --for=condition=Succeeded "$run" --timeout=25m
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}

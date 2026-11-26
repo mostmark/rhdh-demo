@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${{ values.name }}
+  labels:
+    app: ${{ values.name }}
+    app.kubernetes.io/name: ${{ values.name }}
+    app.kubernetes.io/part-of: ${{ values.name }}
+    app.openshift.io/runtime: apache
+    backstage.io/kubernetes-id: ${{ values.name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    app.openshift.io/vcs-uri: ${{ values.gitUrl }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: ${{ values.name }}}
+  template:
+    metadata:
+      labels:
+        app: ${{ values.name }}
+        app.kubernetes.io/name: ${{ values.name }}
+        backstage.io/kubernetes-id: ${{ values.name }}
+    spec:
+      containers:
+        - name: web
+          image: image-registry.openshift-image-registry.svc:5000/${{ values.namespace }}/${{ values.name }}:latest
+          imagePullPolicy: Always
+          ports:
+            - {containerPort: 8080, name: http}
+          readinessProbe:
+            httpGet: {path: /, port: 8080}
+          resources:
+            requests: {cpu: 10m, memory: 64Mi}
+            limits: {memory: 256Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${{ values.name }}
+  labels:
+    app: ${{ values.name }}
+    backstage.io/kubernetes-id: ${{ values.name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  selector: {app: ${{ values.name }}}
+  ports:
+    - {name: http, port: 8080, targetPort: 8080}
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: ${{ values.name }}
+  labels:
+    app: ${{ values.name }}
+    backstage.io/kubernetes-id: ${{ values.name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  host: ${{ values.name }}-${{ values.namespace }}.${{ values.appsDomain }}
+  to: {kind: Service, name: ${{ values.name }}}
+  port: {targetPort: http}
+  tls: {termination: edge, insecureEdgeTerminationPolicy: Redirect}

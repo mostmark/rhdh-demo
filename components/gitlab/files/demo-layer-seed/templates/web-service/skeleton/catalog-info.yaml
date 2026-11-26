@@ -1,0 +1,26 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  description: ${{ values.description }}
+  tags: [web, httpd, tekton]
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+    backstage.io/kubernetes-id: ${{ values.name }}
+    backstage.io/kubernetes-namespace: ${{ values.namespace }}
+    argocd/app-name: ${{ values.name }}
+    tekton.dev/cicd: "true"
+  links:
+    - url: https://${{ values.name }}-${{ values.namespace }}.${{ values.appsDomain }}
+      title: Live application
+      icon: web
+    - url: https://openshift-gitops-server-openshift-gitops.${{ values.appsDomain }}/applications/openshift-gitops/${{ values.name }}
+      title: Argo CD
+      icon: dashboard
+spec:
+  type: service
+  lifecycle: experimental
+  owner: ${{ values.owner }}
+{%- if values.system %}
+  system: ${{ values.system }}
+{%- endif %}

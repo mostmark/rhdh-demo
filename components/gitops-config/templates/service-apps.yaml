@@ -1,0 +1,47 @@
+# One Application per repo in GitLab group {{ .Values.serviceApps.group }} that has a deploy/ folder
+# (software template "New service"): namespace demo-<repo>, project demo-apps. The repos
+# are public, so no GitLab token is needed. New repos are picked up within a minute.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: service-apps
+  namespace: openshift-gitops
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - scmProvider:
+        cloneProtocol: https
+        requeueAfterSeconds: 60
+        gitlab:
+          api: https://gitlab.{{ .Values.appsDomain }}/
+          group: {{ .Values.serviceApps.group | quote }}
+          includeSubgroups: false
+        filters:
+          - pathsExist: [deploy]
+            branchMatch: ^main$
+  template:
+    metadata:
+      name: {{ `'{{ .repository }}'` }}
+      labels:
+        backstage.io/kubernetes-id: {{ `'{{ .repository }}'` }}
+        rhdh-demo/source: service-apps
+      finalizers: [resources-finalizer.argocd.argoproj.io]
+    spec:
+      project: demo-apps
+      source:
+        repoURL: {{ `'{{ .url }}'` }}
+        targetRevision: main
+        path: deploy
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: {{ `'demo-{{ .repository }}'` }}
+      syncPolicy:
+        automated: {prune: true, selfHeal: true}
+        syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true]
+        retry: {limit: 10, backoff: {duration: 30s, factor: 2, maxDuration: 5m}}
+      # the pipeline's last step restarts the Deployment to roll out the new image
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers: [/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt]

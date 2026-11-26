@@ -14,3 +14,7 @@ data:
           target: https://gitlab.__APPS_DOMAIN__/demo/rhdh-demo-config/-/blob/main/catalog/all.yaml
           rules:
             - allow: [Location, Domain, System, Component, API, Resource, Template]
+        - type: url
+          target: https://gitlab.__APPS_DOMAIN__/demo/rhdh-demo-config/-/blob/main/templates/all.yaml
+          rules:
+            - allow: [Location, Template]
