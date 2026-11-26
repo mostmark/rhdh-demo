@@ -4,7 +4,10 @@ Bootstrap an empty OpenShift cluster into a Red Hat Developer Hub (RHDH) 2.1 dem
 environment: one script installs OpenShift GitOps, then Argo CD installs everything
 else from this repository.
 
-> **Status: work in progress** (branch `wip`), being tested on a single-node cluster.
+> **Status: work in progress** (branch `wip`). Phase 1 runs end to end on a single-node
+> OpenShift 4.22 cluster: Developer Hub 2.1.0 with Keycloak sign-in, users and groups
+> from Keycloak, the demo-layer catalog from the in-cluster GitLab, and GitLab sign-in
+> through Keycloak.
 
 ## What you get (phase 1)
 
@@ -79,6 +82,20 @@ parameters of the root Application.
   so it reaches GitLab, Keycloak and Argo CD through their routes.
 - Kubernetes/Topology plugins use a read-only ClusterRole for their service account
   (no `cluster-admin`).
+- The operator mounts each app-config ConfigMap key as a file under
+  `/opt/app-root/src/`, so keys must be unique across ConfigMaps (here
+  `app-config-base.yaml`, `app-config-demo.yaml`); a duplicate key silently replaces the
+  other file. It doesn't retry when a referenced ConfigMap appears later, which is why
+  the demo layer syncs in an earlier wave.
+- The plugins' default configs read environment variables and use fixed provider ids
+  (`gitlab.default`, `keycloakOrg.default`); the app-config uses the same ids.
+
+## Sync ordering
+
+`bootstrap.sh` adds two Argo CD health checks so the sync waves really wait:
+an `Application` counts as healthy only once it is Synced (otherwise an app whose repo
+isn't reachable yet reports Healthy), and a `Backstage` resource only once its
+`Deployed` condition is `True`.
 
 ## Security notes
 
