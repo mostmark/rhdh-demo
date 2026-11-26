@@ -1,0 +1,60 @@
+# Sample workload. The backstage.io/kubernetes-id label links every resource to the
+# catalog Component hello-service (Kubernetes, Topology and Tekton tabs).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-service
+  namespace: demo-hello
+  labels:
+    app: hello-service
+    app.kubernetes.io/name: hello-service
+    app.kubernetes.io/part-of: demo-platform
+    app.openshift.io/runtime: apache
+    backstage.io/kubernetes-id: hello-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: hello-service}
+  template:
+    metadata:
+      labels:
+        app: hello-service
+        app.kubernetes.io/name: hello-service
+        backstage.io/kubernetes-id: hello-service
+    spec:
+      containers:
+        - name: httpd
+          image: registry.access.redhat.com/ubi9/httpd-24:latest
+          ports:
+            - {containerPort: 8080, name: http}
+          readinessProbe:
+            httpGet: {path: /, port: 8080}
+          resources:
+            requests: {cpu: 10m, memory: 64Mi}
+            limits: {memory: 256Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello-service
+  namespace: demo-hello
+  labels:
+    app: hello-service
+    backstage.io/kubernetes-id: hello-service
+spec:
+  selector: {app: hello-service}
+  ports:
+    - {name: http, port: 8080, targetPort: 8080}
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: hello-service
+  namespace: demo-hello
+  labels:
+    app: hello-service
+    backstage.io/kubernetes-id: hello-service
+spec:
+  to: {kind: Service, name: hello-service}
+  port: {targetPort: http}
+  tls: {termination: edge, insecureEdgeTerminationPolicy: Redirect}

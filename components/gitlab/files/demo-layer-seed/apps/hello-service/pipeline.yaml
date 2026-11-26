@@ -1,0 +1,53 @@
+# A small CI pipeline for the Tekton tab. Each Argo CD sync of this app starts one run
+# (PostSync hook); start more with `tkn pipeline start hello-service-ci -n demo-hello`.
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: hello-service-ci
+  namespace: demo-hello
+  labels:
+    backstage.io/kubernetes-id: hello-service
+spec:
+  tasks:
+    - name: build
+      taskSpec:
+        steps:
+          - name: build
+            image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+            script: |
+              echo "Building hello-service"
+              sleep 10
+              echo "Build complete"
+    - name: test
+      runAfter: [build]
+      taskSpec:
+        steps:
+          - name: test
+            image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+            script: |
+              echo "Running tests"
+              sleep 5
+              echo "All tests passed"
+    - name: deploy
+      runAfter: [test]
+      taskSpec:
+        steps:
+          - name: deploy
+            image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+            script: |
+              echo "Deployment is managed by Argo CD (application hello-service)"
+---
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: hello-service-ci-
+  namespace: demo-hello
+  labels:
+    backstage.io/kubernetes-id: hello-service
+    tekton.dev/pipeline: hello-service-ci
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+spec:
+  pipelineRef: {name: hello-service-ci}
+  taskRunTemplate:
+    serviceAccountName: default

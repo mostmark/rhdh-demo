@@ -1,0 +1,20 @@
+# Argo CD application for the sample workload, in the restricted demo-apps project
+# (the one Developer Hub's Argo CD account can read).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hello-service
+  namespace: openshift-gitops
+  labels:
+    backstage.io/kubernetes-id: hello-service
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: demo-apps
+  destination: {server: https://kubernetes.default.svc, namespace: demo-hello}
+  source:
+    repoURL: https://gitlab.__APPS_DOMAIN__/demo/rhdh-demo-config.git
+    targetRevision: main
+    path: apps/hello-service
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    retry: {limit: 10, backoff: {duration: 30s, factor: 2, maxDuration: 5m}}

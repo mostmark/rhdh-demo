@@ -1,6 +1,7 @@
 # Seed GitLab for the demo. Runs inside the GitLab pod via `gitlab-rails runner -`.
 # The seed Job prepends: APPS, DEMO_GROUP, DEMO_REPO, DEV_GROUP, CURRENT_TOKEN, FILES.
-# Idempotent: existing groups, projects and a still-valid token are left alone.
+# Idempotent: existing groups, projects and a still-valid token are left alone; the
+# demo-layer repo is only updated while it holds nothing but seed commits.
 
 root = User.find_by_username('root') or raise 'root user not found'
 org_id = begin
@@ -46,15 +47,35 @@ unless project
 
   log.call("created project #{full_path}")
 end
-if project.repository.empty?
-  actions = FILES.sort.map do |path, content|
-    { action: :create, file_path: path, content: content.gsub('__APPS_DOMAIN__', APPS) }
-  end
-  project.repository.commit_files(root, branch_name: 'main', message: 'Seed the demo layer', actions: actions)
+# Seed content: created in an empty repo, and kept up to date (created/updated files,
+# nothing deleted) as long as every commit is a seed commit. Once someone else commits,
+# the demo layer belongs to them and is left alone.
+seed_msg = 'Seed the demo layer'
+repo = project.repository
+wanted = FILES.transform_values { |c| c.gsub('__APPS_DOMAIN__', APPS) }
+if repo.empty?
+  actions = wanted.sort.map { |path, content| { action: :create, file_path: path, content: content } }
+  repo.commit_files(root, branch_name: 'main', message: seed_msg, actions: actions)
   project.change_head('main') if project.respond_to?(:change_head)
   log.call("seeded #{full_path} with #{actions.size} files")
+elsif repo.commits('main', limit: 1000).all? { |c| c.safe_message.to_s.start_with?(seed_msg) }
+  actions = wanted.sort.filter_map do |path, content|
+    blob = repo.blob_at('main', path)
+    if blob.nil?
+      { action: :create, file_path: path, content: content }
+    else
+      blob.load_all_data!
+      { action: :update, file_path: path, content: content } if blob.data.b != content.b
+    end
+  end
+  if actions.empty?
+    log.call("#{full_path} matches the seed")
+  else
+    repo.commit_files(root, branch_name: 'main', message: "#{seed_msg} (update)", actions: actions)
+    log.call("updated #{full_path}: #{actions.map { |a| a[:file_path] }.join(', ')}")
+  end
 else
-  log.call("#{full_path} already has content; not touched")
+  log.call("#{full_path} has commits besides the seed; not touched")
 end
 
 # Token for Developer Hub (catalog discovery, scaffolder publish:gitlab, URL reading).

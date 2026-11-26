@@ -22,8 +22,17 @@ kind: Component
 metadata:
   name: hello-service
   title: Hello Service
-  description: A sample service.
-  tags: [quarkus, java]
+  description: A sample service, deployed by Argo CD to namespace demo-hello.
+  tags: [web, httpd]
+  annotations:
+    backstage.io/kubernetes-id: hello-service
+    backstage.io/kubernetes-namespace: demo-hello
+    argocd/app-name: hello-service
+    tekton.dev/cicd: "true"
+  links:
+    - url: https://hello-service-demo-hello.__APPS_DOMAIN__
+      title: Hello Service
+      icon: web
 spec:
   type: service
   lifecycle: experimental

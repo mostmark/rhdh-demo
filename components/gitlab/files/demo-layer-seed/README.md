@@ -8,3 +8,11 @@ Developer Hub restarts automatically when `manifests/app-config-demo.yaml` chang
   locations). Loaded after the platform's base config, so it wins.
 - `catalog/`: catalog entities. Teams and people come from Keycloak (realm `sso`), so
   use Keycloak group names as owners (e.g. `group:default/platform-team`).
+- `manifests/hello-service-app.yaml` + `apps/hello-service/`: a sample workload
+  (Deployment, Route, Tekton pipeline) that Argo CD deploys to `demo-hello` in the
+  `demo-apps` project; it fills the Argo CD, Topology, Kubernetes and Tekton tabs of the
+  `hello-service` component. Delete both to remove it.
+
+The bootstrap's seed Job keeps this repo up to date with the platform's seed content
+only as long as every commit here is a seed commit. Once you commit yourself, the seed
+leaves the repo alone.
