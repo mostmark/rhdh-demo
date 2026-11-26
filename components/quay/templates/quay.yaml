@@ -105,6 +105,10 @@ spec:
           ports: [{containerPort: 8080, name: http}]
           env:
             - {name: QUAY_DISTRIBUTED_STORAGE_PREFERENCE, value: default}
+            # Quay sizes its gunicorn pools from the node's CPU count (32 here): cap them
+            - {name: WORKER_COUNT_WEB, value: "4"}
+            - {name: WORKER_COUNT_REGISTRY, value: "8"}
+            - {name: WORKER_COUNT_SECSCAN, value: "1"}
           readinessProbe:
             httpGet: {path: /health/instance, port: 8080}
             initialDelaySeconds: 30
@@ -117,8 +121,8 @@ spec:
             timeoutSeconds: 10
             failureThreshold: 5
           resources:
-            requests: {cpu: 200m, memory: 1Gi}
-            limits: {memory: 4Gi}
+            requests: {cpu: 200m, memory: 2Gi}
+            limits: {memory: 6Gi}
           volumeMounts:
             - {name: config, mountPath: /conf/stack}
             - {name: registry, mountPath: /datastorage}
