@@ -7,7 +7,8 @@ else from this repository.
 > **Status: work in progress** (branch `wip`). Phase 1 runs end to end on a single-node
 > OpenShift 4.22 cluster: Developer Hub 2.1.0 with Keycloak sign-in, users and groups
 > from Keycloak, the demo-layer catalog from the in-cluster GitLab, and GitLab sign-in
-> through Keycloak.
+> through Keycloak, and a sample workload (`hello-service`: Argo CD, Kubernetes,
+> Topology and Tekton views).
 
 ## What you get (phase 1)
 
@@ -81,7 +82,10 @@ parameters of the root Application.
 - Network: RHDH runs behind default-deny NetworkPolicies that allow only 443/6443 out,
   so it reaches GitLab, Keycloak and Argo CD through their routes.
 - Kubernetes/Topology plugins use a read-only ClusterRole for their service account
-  (no `cluster-admin`).
+  (no `cluster-admin`) and verify the API server with the cluster CA (`caFile`, mounted
+  from the service account's token Secret). This needs
+  `GLOBAL_AGENT_FORCE_GLOBAL_AGENT=false`: the backend's corporate-proxy support
+  otherwise replaces the plugin's TLS settings (`skipTLSVerify` doesn't work either).
 - The operator mounts each app-config ConfigMap key as a file under
   `/opt/app-root/src/`, so keys must be unique across ConfigMaps (here
   `app-config-base.yaml`, `app-config-demo.yaml`); a duplicate key silently replaces the
