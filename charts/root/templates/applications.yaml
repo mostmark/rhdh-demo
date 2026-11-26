@@ -70,6 +70,7 @@ spec:
       helm:
         valuesObject:
           appsDomain: {{ .Values.appsDomain }}
+          components: {{ .Values.components | toJson }}
   syncPolicy:
     automated: {prune: true, selfHeal: true}
     retry: {limit: 20, backoff: {duration: 30s, factor: 2, maxDuration: 5m}}

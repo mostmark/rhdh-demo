@@ -17,6 +17,9 @@ metadata:
     - url: https://openshift-gitops-server-openshift-gitops.${{ values.appsDomain }}/applications/openshift-gitops/${{ values.name }}
       title: Argo CD
       icon: dashboard
+    - url: https://devspaces.${{ values.appsDomain }}/#${{ values.gitUrl }}
+      title: Open in Dev Spaces
+      icon: code
 spec:
   type: service
   lifecycle: experimental

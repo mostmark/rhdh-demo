@@ -1,0 +1,56 @@
+{{- if (.Values.components | default dict).quay }}
+# Runs after every demo-layer sync: makes the demo's Quay organisation, public
+# repositories and image tags exist, from the demo layer's ConfigMap quay/demo-quay
+# (key repos.json). Uses the Quay admin token (Secret quay/quay-admin), in namespace quay.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rhdh-demo-quay-sync
+  namespace: quay
+data:
+  quay-sync.sh: {{ .Files.Get "files/quay-sync.sh" | quote }}
+  quay-copy.sh: {{ .Files.Get "files/quay-copy.sh" | quote }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rhdh-demo-quay-sync
+  namespace: quay
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 1800
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - name: repos
+          image: {{ .Values.quay.cliImage }}
+          command: [/bin/bash, /script/quay-sync.sh]
+          env:
+            - {name: APPS_DOMAIN, value: {{ .Values.appsDomain | quote }}}
+            - name: QUAY_TOKEN
+              valueFrom: {secretKeyRef: {name: quay-admin, key: token}}
+          volumeMounts:
+            - {name: script, mountPath: /script}
+            - {name: repos, mountPath: /quay}
+            - {name: work, mountPath: /work}
+          resources: {requests: {cpu: 10m, memory: 32Mi}, limits: {memory: 128Mi}}
+      containers:
+        - name: copy
+          image: {{ .Values.quay.skopeoImage }}
+          command: [/bin/bash, /script/quay-copy.sh]
+          env:
+            - name: QUAY_TOKEN
+              valueFrom: {secretKeyRef: {name: quay-admin, key: token}}
+          volumeMounts:
+            - {name: script, mountPath: /script}
+            - {name: work, mountPath: /work}
+          resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 512Mi}}
+      volumes:
+        - {name: script, configMap: {name: rhdh-demo-quay-sync}}
+        - {name: repos, configMap: {name: demo-quay, optional: true}}
+        - {name: work, emptyDir: {}}
+{{- end }}

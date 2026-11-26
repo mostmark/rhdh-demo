@@ -1,3 +1,7 @@
 appsDomain: ""                      # set by the root Application
 realm: sso
 image: registry.access.redhat.com/ubi9/python-312:latest
+components: {}
+quay:
+  cliImage: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+  skopeoImage: registry.redhat.io/rhel9/skopeo:latest

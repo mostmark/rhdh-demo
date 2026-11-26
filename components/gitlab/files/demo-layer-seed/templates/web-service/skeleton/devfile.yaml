@@ -1,0 +1,22 @@
+schemaVersion: 2.2.2
+metadata:
+  name: ${{ values.name }}
+  description: ${{ values.description }}
+components:
+  - name: tools
+    container:
+      image: registry.redhat.io/devspaces/udi-rhel9:latest
+      memoryLimit: 2Gi
+      mountSources: true
+      endpoints:
+        - name: preview
+          targetPort: 8080
+          exposure: public
+          protocol: https
+commands:
+  - id: preview
+    exec:
+      label: Preview the page on port 8080
+      component: tools
+      workingDir: ${PROJECT_SOURCE}/src
+      commandLine: python3 -m http.server 8080
