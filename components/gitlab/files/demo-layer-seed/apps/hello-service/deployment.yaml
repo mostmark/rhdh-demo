@@ -29,9 +29,30 @@ spec:
             - {containerPort: 8080, name: http}
           readinessProbe:
             httpGet: {path: /, port: 8080}
+          volumeMounts:
+            - {name: content, mountPath: /var/www/html}
           resources:
             requests: {cpu: 10m, memory: 64Mi}
             limits: {memory: 256Mi}
+      volumes:
+        - name: content
+          configMap: {name: hello-service-content}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hello-service-content
+  namespace: demo-hello
+  labels:
+    backstage.io/kubernetes-id: hello-service
+data:
+  index.html: |
+    <!doctype html>
+    <html><head><meta charset="utf-8"><title>Hello Service</title></head>
+    <body style="font-family: sans-serif; margin: 3rem">
+      <h1>Hello from hello-service</h1>
+      <p>Deployed by Argo CD from the demo layer in GitLab.</p>
+    </body></html>
 ---
 apiVersion: v1
 kind: Service
