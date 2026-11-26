@@ -6,7 +6,7 @@ metadata:
 spec:
   description: Applications created by Developer Hub software templates
   sourceRepos:
-    - https://gitlab.{{ .Values.appsDomain }}/*
+    - https://gitlab.{{ .Values.appsDomain }}/**   # Argo CD 3.x: '*' does not match '/'
   destinations:
     - server: https://kubernetes.default.svc
       namespace: {{ .Values.demoApps.namespacePattern | quote }}
