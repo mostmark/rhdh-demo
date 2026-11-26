@@ -96,17 +96,36 @@ subjects:
     name: openshift-gitops-argocd-application-controller
     namespace: openshift-gitops
 EOF
-# Application health (so sync waves wait for child apps), and an API account for the
-# Developer Hub Argo CD plugin, limited to the demo-apps project.
+# Health checks: Applications count as healthy only once Synced (so sync waves wait),
+# Backstage CRs only once deployed. Plus an API account for the Developer Hub Argo CD
+# plugin, limited to the demo-apps project.
 oc patch argocd openshift-gitops -n openshift-gitops --type merge -p "$(cat <<'EOF'
-{"spec": {
-  "extraConfig": {"accounts.rhdh": "apiKey"},
-  "rbac": {"policy": "g, system:cluster-admins, role:admin\ng, cluster-admins, role:admin\np, rhdh, applications, *, demo-apps/*, allow\np, rhdh, projects, get, demo-apps, allow\np, rhdh, clusters, get, *, allow\n", "scopes": "[groups]"},
-  "resourceHealthChecks": [{"group": "argoproj.io", "kind": "Application", "check": "hs = {}\nhs.status = \"Progressing\"\nhs.message = \"\"\nif obj.status ~= nil then\n  if obj.status.health ~= nil then\n    hs.status = obj.status.health.status\n    if obj.status.health.message ~= nil then hs.message = obj.status.health.message end\n  end\nend\nreturn hs\n"}]
-}}
+{
+ "spec": {
+  "extraConfig": {
+   "accounts.rhdh": "apiKey"
+  },
+  "rbac": {
+   "policy": "g, system:cluster-admins, role:admin\ng, cluster-admins, role:admin\np, rhdh, applications, *, demo-apps/*, allow\np, rhdh, projects, get, demo-apps, allow\np, rhdh, clusters, get, *, allow\n",
+   "scopes": "[groups]"
+  },
+  "resourceHealthChecks": [
+   {
+    "group": "argoproj.io",
+    "kind": "Application",
+    "check": "hs = {status = \"Progressing\", message = \"\"}\nif obj.status ~= nil then\n  if obj.status.health ~= nil then\n    hs.status = obj.status.health.status\n    if obj.status.health.message ~= nil then hs.message = obj.status.health.message end\n  end\n  -- an Application whose source can't be read has no resources and would count as\n  -- Healthy; only treat it as done once it is Synced (so sync waves really wait)\n  if obj.status.sync == nil or obj.status.sync.status ~= \"Synced\" then\n    hs.status = \"Progressing\"\n    hs.message = \"waiting for the application to sync\"\n  end\n  if obj.status.operationState ~= nil and obj.status.operationState.phase == \"Running\" then\n    hs.status = \"Progressing\"\n  end\nend\nreturn hs\n"
+   },
+   {
+    "group": "rhdh.redhat.com",
+    "kind": "Backstage",
+    "check": "hs = {status = \"Progressing\", message = \"waiting for Developer Hub\"}\nif obj.status ~= nil and obj.status.conditions ~= nil then\n  for _, c in ipairs(obj.status.conditions) do\n    if c.type == \"Config\" and c.status == \"False\" then\n      hs.status = \"Degraded\"\n      hs.message = c.message\n      return hs\n    end\n  end\n  for _, c in ipairs(obj.status.conditions) do\n    if c.type == \"Deployed\" then\n      if c.status == \"True\" then hs.status = \"Healthy\" end\n      if c.message ~= nil then hs.message = c.message end\n    end\n  end\nend\nreturn hs\n"
+   }
+  ]
+ }
+}
 EOF
 )" >/dev/null
-info "controller has cluster-admin; Application health check and 'rhdh' account configured"
+info "controller has cluster-admin; health checks (Application, Backstage) and 'rhdh' account configured"
 
 # ---------------------------------------------------------------- 4. namespaces and secrets
 say "Namespaces and secrets"
