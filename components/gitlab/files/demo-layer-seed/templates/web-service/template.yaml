@@ -61,7 +61,6 @@ spec:
         repoUrl: gitlab.__APPS_DOMAIN__?owner=development&repo=${{ parameters.name }}
         repoVisibility: public
         defaultBranch: main
-        description: ${{ parameters.description }}
     - id: register
       name: Register in the catalog
       action: catalog:register
