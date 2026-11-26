@@ -99,7 +99,8 @@ EOF
 # Health checks: Applications count as healthy only once Synced (so sync waves wait),
 # Backstage CRs only once deployed. Plus an API account for the Developer Hub Argo CD
 # plugin, limited to the demo-apps project.
-oc patch argocd openshift-gitops -n openshift-gitops --type merge -p "$(cat <<'EOF'
+# (patch on stdin, not via "$(cat <<EOF)": bash 3.2 mis-parses heredocs with parentheses inside $(…))
+oc patch argocd openshift-gitops -n openshift-gitops --type merge --patch-file /dev/stdin >/dev/null <<'EOF'
 {
  "spec": {
   "extraConfig": {
@@ -124,7 +125,6 @@ oc patch argocd openshift-gitops -n openshift-gitops --type merge -p "$(cat <<'E
  }
 }
 EOF
-)" >/dev/null
 info "controller has cluster-admin; health checks (Application, Backstage) and 'rhdh' account configured"
 
 # ---------------------------------------------------------------- 4. namespaces and secrets
