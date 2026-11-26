@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config-demo
+  namespace: rhdh
+data:
+  app-config.yaml: |
+    app:
+      title: Developer Hub Demo
+    catalog:
+      locations:
+        - type: url
+          target: https://gitlab.__APPS_DOMAIN__/demo/rhdh-demo-config/-/blob/main/catalog/all.yaml
+          rules:
+            - allow: [Location, Domain, System, Component, API, Resource, Template]

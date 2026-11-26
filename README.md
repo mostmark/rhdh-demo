@@ -1,0 +1,97 @@
+# rhdh-demo
+
+Bootstrap an empty OpenShift cluster into a Red Hat Developer Hub (RHDH) 2.1 demo
+environment: one script installs OpenShift GitOps, then Argo CD installs everything
+else from this repository.
+
+> **Status: work in progress** (branch `wip`), being tested on a single-node cluster.
+
+## What you get (phase 1)
+
+| Component | How | Notes |
+|---|---|---|
+| OpenShift GitOps | `bootstrap.sh` (Subscription, channel `gitops-1.22`) | Platform Argo CD (`openshift-gitops`) that syncs this repo |
+| OpenShift Pipelines | Argo CD, Subscription | Tekton for templates and the Tekton tab |
+| GitLab | Argo CD, single `gitlab-ce` container + PVC | In-cluster Git server; sign-in through Keycloak |
+| Keycloak configuration | Argo CD hook Job | Uses the cluster's existing Keycloak and realm `sso` |
+| Apps from templates | `demo-apps` AppProject in the platform Argo CD | Only GitLab sources, `demo-*` namespaces, Namespace as the only cluster-scoped kind |
+| Developer Hub 2.1 | Argo CD, RHDH operator (`fast-2.1`) + `Backstage` CR | Keycloak sign-in, users from Keycloak |
+| Demo layer | Argo CD app reading a repo in the in-cluster GitLab | Branding, catalog, RBAC: changed per demo without touching this repo |
+
+Phase 2: Orchestrator (OpenShift Serverless + Serverless Logic, `orchestrator` flavour),
+Dev Spaces, Quay.
+
+Requirements: OpenShift 4.19–4.22 with a default storage class, a trusted ingress
+certificate, the Red Hat build of Keycloak with realm `sso` (as provided by the target
+cluster type), and `oc` logged in as cluster admin. A single node (32 vCPU, 128 GiB,
+250 pods) fits phase 1 and 2.
+
+## How it works
+
+```
+bootstrap.sh
+ ├─ checks the oc login, reads the apps domain
+ ├─ installs the OpenShift GitOps operator, waits for the openshift-gitops Argo CD
+ ├─ gives its application controller the permissions to install operators
+ ├─ generates the secrets in the cluster (never in Git): demo password, GitLab root
+ │  password, Keycloak client secrets, RHDH session and backend secrets
+ └─ applies bootstrap/root-app.yaml with parameters: apps domain, repo URL, revision,
+    component toggles
+root Application (Helm chart charts/root) → one Application per component, sync waves:
+ wave 0  operators: Pipelines, RHDH operator
+ wave 1  gitlab (+ PostSync seed Job: groups, demo-layer repo, Developer Hub token)
+         keycloak-config (PostSync Job: clients, groups, users in realm sso)
+         gitops-config (demo-apps AppProject + PostSync Job: Argo CD token for Developer Hub)
+ wave 2  demo-layer (Application → in-cluster GitLab repo demo/rhdh-demo-config)
+ wave 3  developer-hub (ConfigMaps, Backstage CR, Kubernetes reader)
+```
+
+## Repository layout
+
+```
+bootstrap.sh                      # the only thing you run
+bootstrap/root-app.yaml           # template for the root Application (parameters filled in by the script)
+charts/root/                      # Helm chart: renders the per-component Applications
+components/
+  operators/                      # Subscriptions/OperatorGroups (Pipelines, RHDH)
+  gitlab/                         # GitLab Deployment, PVCs, Route, seed Job; files/demo-layer-seed = initial demo layer
+  keycloak-config/                # Job: clients, groups, users in realm sso (default org in values.yaml)
+  gitops-config/                  # demo-apps AppProject, Argo CD token Job
+  developer-hub/                  # Backstage CR, base app-config, dynamic plugins, Kubernetes reader
+docs/                             # design notes, versions, troubleshooting
+```
+
+No secrets, passwords or cluster domains are committed; the domain and the toggles are
+parameters of the root Application.
+
+## Developer Hub configuration (verified on RHDH 2.1.0)
+
+- `Backstage` CR `v1alpha5`: `flavours` with `intelligent-assistant` disabled; a
+  `deployment.patch` raising the `dynamic-plugins-root` volume to 5Gi (the 2Gi default
+  is too small for this plugin set).
+- Plugins: GA and Technology Preview plugins by `ref://` name; the community Argo CD,
+  Roadie Argo CD and Tekton plugins by pinned `oci://ghcr.io/…@sha256:` references
+  (they are not in the plugin catalog index, so `ref://` fails for them).
+- Sign-in: native Keycloak provider, `signInPage: keycloak`; users and groups imported
+  with the Keycloak org provider. Catalog provider modules are only enabled together
+  with their configuration (otherwise backend startup fails silently).
+- Network: RHDH runs behind default-deny NetworkPolicies that allow only 443/6443 out,
+  so it reaches GitLab, Keycloak and Argo CD through their routes.
+- Kubernetes/Topology plugins use a read-only ClusterRole for their service account
+  (no `cluster-admin`).
+
+## Security notes
+
+- The platform Argo CD's application controller gets cluster-admin, because it
+  installs operators and CRDs. Template-created apps go into the restricted
+  `demo-apps` AppProject; Developer Hub's Argo CD account (`rhdh`) can only see and
+  manage applications in that project.
+- The Keycloak Job reads the existing admin credentials (`keycloak-initial-admin`) to
+  add clients and users to realm `sso`; it does not change the realm import.
+- Demo users share one password, generated by `bootstrap.sh` (or given with
+  `DEMO_PASSWORD`). It's meant for short-lived demo clusters.
+
+## Testing
+
+Argo CD syncs from Git, so changes are tested from the `wip` branch:
+`REVISION=wip ./bootstrap.sh`.

@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rhdh-demo-keycloak-config
+data:
+  configure.py: {{ .Files.Get "files/configure.py" | quote }}
+  org.json: {{ .Values.org | toJson | quote }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rhdh-demo-keycloak-config
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 1200
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: configure
+          image: {{ .Values.image }}
+          command: [python3, /config/configure.py]
+          env:
+            - {name: KEYCLOAK_URL, value: "https://sso.{{ .Values.appsDomain }}"}
+            - {name: REALM, value: {{ .Values.realm | quote }}}
+            - {name: APPS_DOMAIN, value: {{ .Values.appsDomain | quote }}}
+            - name: KC_ADMIN_USER
+              valueFrom: {secretKeyRef: {name: keycloak-initial-admin, key: username}}
+            - name: KC_ADMIN_PASSWORD
+              valueFrom: {secretKeyRef: {name: keycloak-initial-admin, key: password}}
+            - name: DEMO_PASSWORD
+              valueFrom: {secretKeyRef: {name: demo-credentials, key: DEMO_PASSWORD}}
+            - name: RHDH_CLIENT_SECRET
+              valueFrom: {secretKeyRef: {name: demo-credentials, key: RHDH_CLIENT_SECRET}}
+            - name: GITLAB_CLIENT_SECRET
+              valueFrom: {secretKeyRef: {name: demo-credentials, key: GITLAB_CLIENT_SECRET}}
+          volumeMounts: [{name: config, mountPath: /config}]
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {memory: 256Mi}
+      volumes:
+        - {name: config, configMap: {name: rhdh-demo-keycloak-config}}

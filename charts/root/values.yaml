@@ -1,0 +1,16 @@
+# Set by bootstrap.sh in the root Application; never commit cluster-specific values.
+appsDomain: ""            # e.g. apps.ocp.example.com
+repoURL: ""               # this repository
+targetRevision: main
+
+components:
+  operators: true         # wave 0: OpenShift Pipelines, RHDH operator
+  gitlab: true            # wave 1: GitLab (+ PostSync seed Job: groups, demo-layer repo, token)
+  keycloakConfig: true    # wave 1: clients, groups and users in realm sso
+  gitopsConfig: true      # wave 1: demo-apps AppProject, Argo CD token for Developer Hub
+  demoLayer: true         # wave 2: Application for the in-cluster GitLab repo demo/rhdh-demo-config
+  developerHub: true      # wave 3: Backstage CR, base app-config, plugins, Kubernetes reader
+
+demoLayer:
+  repoPath: demo/rhdh-demo-config
+  path: manifests

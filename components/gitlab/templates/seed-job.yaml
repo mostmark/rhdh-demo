@@ -1,0 +1,88 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitlab-seed
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-seed
+rules:
+  - {apiGroups: [""], resources: [pods], verbs: [get, list]}
+  - {apiGroups: [""], resources: [pods/exec], verbs: [create]}
+  - {apiGroups: [apps], resources: [deployments], verbs: [get]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-seed
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: gitlab-seed}
+subjects: [{kind: ServiceAccount, name: gitlab-seed, namespace: gitlab}]
+---
+# Only the one Secret it fills in, in the Developer Hub namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-seed-token
+  namespace: rhdh
+rules:
+  - {apiGroups: [""], resources: [secrets], resourceNames: [rhdh-integrations], verbs: [get, patch]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-seed-token
+  namespace: rhdh
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: gitlab-seed-token}
+subjects: [{kind: ServiceAccount, name: gitlab-seed, namespace: gitlab}]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gitlab-seed-scripts
+data:
+  seed.sh: {{ .Files.Get "files/seed.sh" | quote }}
+  seed.rb: {{ .Files.Get "files/seed.rb" | quote }}
+---
+# Initial content of the demo-layer repo; keys are paths with '/' written as '__'.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gitlab-seed-files
+data:
+{{- range $path, $_ := .Files.Glob "files/demo-layer-seed/**" }}
+  {{ trimPrefix "files/demo-layer-seed/" $path | replace "/" "__" }}: {{ $.Files.Get $path | quote }}
+{{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gitlab-seed
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 3000
+  template:
+    spec:
+      serviceAccountName: gitlab-seed
+      restartPolicy: Never
+      containers:
+        - name: seed
+          image: {{ .Values.seed.cliImage }}
+          command: [/bin/bash, /seed/seed.sh]
+          env:
+            - {name: APPS_DOMAIN, value: {{ .Values.appsDomain | quote }}}
+            - {name: DEMO_GROUP, value: {{ .Values.seed.demoGroup | quote }}}
+            - {name: DEMO_REPO, value: {{ .Values.seed.demoRepo | quote }}}
+            - {name: DEV_GROUP, value: {{ .Values.seed.devGroup | quote }}}
+          volumeMounts:
+            - {name: scripts, mountPath: /seed}
+            - {name: files, mountPath: /seed-files}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {memory: 256Mi}
+      volumes:
+        - {name: scripts, configMap: {name: gitlab-seed-scripts}}
+        - {name: files, configMap: {name: gitlab-seed-files}}

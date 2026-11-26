@@ -1,0 +1,50 @@
+# Read-only access for the Kubernetes, Topology and Tekton plugins (not cluster-admin).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rhdh-k8s-reader
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rhdh-k8s-reader-token
+  annotations:
+    kubernetes.io/service-account.name: rhdh-k8s-reader
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: rhdh-k8s-reader
+rules:
+  - apiGroups: [""]
+    resources: [pods, pods/log, services, configmaps, limitranges, resourcequotas, namespaces]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, replicasets, statefulsets, daemonsets]
+    verbs: [get, list, watch]
+  - apiGroups: [batch]
+    resources: [jobs, cronjobs]
+    verbs: [get, list, watch]
+  - apiGroups: [autoscaling]
+    resources: [horizontalpodautoscalers]
+    verbs: [get, list, watch]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses]
+    verbs: [get, list, watch]
+  - apiGroups: [route.openshift.io]
+    resources: [routes]
+    verbs: [get, list, watch]
+  - apiGroups: [tekton.dev]
+    resources: [pipelines, pipelineruns, taskruns]
+    verbs: [get, list, watch]
+  - apiGroups: [metrics.k8s.io]
+    resources: [pods]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: rhdh-k8s-reader
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: rhdh-k8s-reader}
+subjects: [{kind: ServiceAccount, name: rhdh-k8s-reader, namespace: {{ .Release.Namespace }}}]

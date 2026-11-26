@@ -1,0 +1,5 @@
+apiVersion: v2
+name: gitops-config
+description: AppProject for template-created apps and the Argo CD token for Developer Hub
+type: application
+version: 0.1.0

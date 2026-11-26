@@ -1,0 +1,15 @@
+appsDomain: ""                      # set by the root Application
+realm: sso
+image: registry.access.redhat.com/ubi9/python-312:latest
+# Default demo organisation (fictitious). The company group becomes the root of the
+# catalog's org chart; teams are its subgroups. Users get the demo password.
+org:
+  company: demo-company
+  teams:
+    - name: platform-team
+      members:
+        - {username: platform1, firstName: Pat, lastName: Platform, email: platform1@demo.example}
+    - name: app-team
+      members:
+        - {username: developer1, firstName: Dana, lastName: Developer, email: developer1@demo.example}
+        - {username: developer2, firstName: Devon, lastName: Coder, email: developer2@demo.example}

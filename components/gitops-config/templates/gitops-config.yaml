@@ -1,0 +1,73 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: demo-apps
+  namespace: openshift-gitops
+spec:
+  description: Applications created by Developer Hub software templates
+  sourceRepos:
+    - https://gitlab.{{ .Values.appsDomain }}/*
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: {{ .Values.demoApps.namespacePattern | quote }}
+  clusterResourceWhitelist:
+    - {group: "", kind: Namespace}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rhdh-argocd-token
+  namespace: openshift-gitops
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rhdh-argocd-token
+  namespace: rhdh
+rules:
+  - {apiGroups: [""], resources: [secrets], resourceNames: [rhdh-integrations], verbs: [get, patch]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rhdh-argocd-token
+  namespace: rhdh
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: rhdh-argocd-token}
+subjects: [{kind: ServiceAccount, name: rhdh-argocd-token, namespace: openshift-gitops}]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rhdh-argocd-token
+  namespace: openshift-gitops
+data:
+  argocd_token.py: {{ .Files.Get "files/argocd_token.py" | quote }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rhdh-argocd-token
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 900
+  template:
+    spec:
+      serviceAccountName: rhdh-argocd-token
+      restartPolicy: Never
+      containers:
+        - name: token
+          image: {{ .Values.image }}
+          command: [python3, /scripts/argocd_token.py]
+          env:
+            - name: ARGOCD_ADMIN_PASSWORD
+              valueFrom: {secretKeyRef: {name: openshift-gitops-cluster, key: admin.password}}
+          volumeMounts: [{name: scripts, mountPath: /scripts}]
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {memory: 256Mi}
+      volumes:
+        - {name: scripts, configMap: {name: rhdh-argocd-token}}

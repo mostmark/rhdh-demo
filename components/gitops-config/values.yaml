@@ -1,0 +1,7 @@
+appsDomain: ""                      # set by the root Application
+image: registry.access.redhat.com/ubi9/python-312:latest
+# Apps created by software templates: sources from the in-cluster GitLab only, deployed
+# into namespaces named demo-*, and the only cluster-scoped kind they may create is a
+# Namespace.
+demoApps:
+  namespacePattern: "demo-*"

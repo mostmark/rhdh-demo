@@ -1,0 +1,130 @@
+{{- $host := printf "gitlab.%s" .Values.appsDomain }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitlab
+---
+# The omnibus image runs its services as different users and needs root at start.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-anyuid
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: "system:openshift:scc:anyuid"}
+subjects: [{kind: ServiceAccount, name: gitlab}]
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gitlab-config
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: {{ .Values.storage.config }}}}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gitlab-data
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: {{ .Values.storage.data }}}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitlab
+  labels: {app: gitlab}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: gitlab}}
+  template:
+    metadata:
+      labels: {app: gitlab}
+    spec:
+      serviceAccountName: gitlab
+      containers:
+        - name: gitlab
+          image: {{ .Values.image }}
+          ports: [{name: http, containerPort: 80}]
+          env:
+            - name: GITLAB_ROOT_PASSWORD
+              valueFrom: {secretKeyRef: {name: gitlab-secrets, key: GITLAB_ROOT_PASSWORD}}
+            - name: GITLAB_OIDC_CLIENT_SECRET
+              valueFrom: {secretKeyRef: {name: gitlab-secrets, key: GITLAB_OIDC_CLIENT_SECRET}}
+            - name: GITLAB_OMNIBUS_CONFIG
+              value: |
+                external_url 'https://{{ $host }}'
+                # TLS ends at the OpenShift route
+                nginx['listen_https'] = false
+                nginx['listen_port'] = 80
+                letsencrypt['enable'] = false
+                gitlab_rails['gitlab_shell_ssh_port'] = 22
+                # keep it light for a single-node demo cluster
+                puma['worker_processes'] = 2
+                sidekiq['concurrency'] = 10
+                prometheus_monitoring['enable'] = false
+                gitlab_rails['monitoring_whitelist'] = ['127.0.0.0/8', '10.0.0.0/8']
+                # sign in through Keycloak (realm {{ .Values.keycloak.realm }})
+                gitlab_rails['omniauth_enabled'] = true
+                gitlab_rails['omniauth_allow_single_sign_on'] = ['openid_connect']
+                gitlab_rails['omniauth_block_auto_created_users'] = false
+                gitlab_rails['omniauth_auto_link_user'] = ['openid_connect']
+                gitlab_rails['omniauth_providers'] = [{
+                  name: 'openid_connect',
+                  label: 'Keycloak',
+                  args: {
+                    name: 'openid_connect',
+                    scope: ['openid', 'profile', 'email'],
+                    response_type: 'code',
+                    issuer: 'https://sso.{{ .Values.appsDomain }}/realms/{{ .Values.keycloak.realm }}',
+                    discovery: true,
+                    client_auth_method: 'basic',
+                    uid_field: 'preferred_username',
+                    pkce: true,
+                    client_options: {
+                      identifier: '{{ .Values.keycloak.clientId }}',
+                      secret: ENV['GITLAB_OIDC_CLIENT_SECRET'],
+                      redirect_uri: 'https://{{ $host }}/users/auth/openid_connect/callback'
+                    }
+                  }
+                }]
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          startupProbe:
+            httpGet: {path: /-/readiness, port: 80}
+            periodSeconds: 20
+            failureThreshold: 90       # first start (database setup) can take ~15 min
+          readinessProbe:
+            httpGet: {path: /-/readiness, port: 80}
+            periodSeconds: 20
+            timeoutSeconds: 10
+          livenessProbe:
+            httpGet: {path: /-/liveness, port: 80}
+            periodSeconds: 60
+            timeoutSeconds: 10
+            failureThreshold: 5
+          volumeMounts:
+            - {name: config, mountPath: /etc/gitlab}
+            - {name: data, mountPath: /var/opt/gitlab}
+            - {name: logs, mountPath: /var/log/gitlab}
+      volumes:
+        - {name: config, persistentVolumeClaim: {claimName: gitlab-config}}
+        - {name: data, persistentVolumeClaim: {claimName: gitlab-data}}
+        - {name: logs, emptyDir: {}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitlab
+spec:
+  selector: {app: gitlab}
+  ports: [{name: http, port: 80, targetPort: 80}]
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: gitlab
+spec:
+  host: {{ $host }}
+  to: {kind: Service, name: gitlab}
+  port: {targetPort: http}
+  tls: {termination: edge, insecureEdgeTerminationPolicy: Redirect}

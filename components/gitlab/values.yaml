@@ -1,0 +1,16 @@
+appsDomain: ""                  # set by the root Application
+image: docker.io/gitlab/gitlab-ce:19.6.2-ce.0
+storage:
+  config: 2Gi
+  data: 30Gi
+resources:
+  requests: {cpu: "1", memory: 4Gi}
+  limits: {memory: 8Gi}
+keycloak:
+  realm: sso
+  clientId: gitlab
+seed:
+  cliImage: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+  demoGroup: demo                # holds the demo-layer repo
+  demoRepo: rhdh-demo-config
+  devGroup: development          # software templates publish here; Developer Hub discovers it

@@ -1,0 +1,87 @@
+{{- $host := printf "developer-hub.%s" .Values.appsDomain }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dynamic-plugins
+data:
+  dynamic-plugins.yaml: {{ .Files.Get "files/dynamic-plugins.yaml" | quote }}
+---
+# Platform defaults. The demo layer's app-config-demo is loaded after this and wins.
+# Secrets come from environment variables (rhdh-secrets, rhdh-integrations, the
+# Kubernetes reader token); Developer Hub reaches other tools through their routes,
+# because its NetworkPolicies only allow egress on 443/6443.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config-base
+data:
+  app-config.yaml: |
+    app:
+      baseUrl: https://{{ $host }}
+    backend:
+      baseUrl: https://{{ $host }}
+      cors:
+        origin: https://{{ $host }}
+    auth:
+      environment: production
+      session:
+        secret: ${SESSION_SECRET}
+      providers:
+        keycloak:
+          production:
+            baseUrl: ${KEYCLOAK_BASE_URL}
+            realm: ${KEYCLOAK_REALM}
+            clientId: ${KEYCLOAK_CLIENT_ID}
+            clientSecret: ${KEYCLOAK_CLIENT_SECRET}
+            prompt: auto
+    signInPage: keycloak
+    integrations:
+      gitlab:
+        - host: gitlab.{{ .Values.appsDomain }}
+          apiBaseUrl: https://gitlab.{{ .Values.appsDomain }}/api/v4
+          token: ${GITLAB_TOKEN}
+    catalog:
+      rules:
+        - allow: [Component, System, API, Resource, Location, Domain, Template]
+      providers:
+        keycloakOrg:
+          default:
+            baseUrl: ${KEYCLOAK_BASE_URL}
+            loginRealm: ${KEYCLOAK_LOGIN_REALM}
+            realm: ${KEYCLOAK_REALM}
+            clientId: ${KEYCLOAK_CLIENT_ID}
+            clientSecret: ${KEYCLOAK_CLIENT_SECRET}
+            schedule:
+              frequency: {minutes: 15}
+              timeout: {minutes: 5}
+              initialDelay: {seconds: 15}
+        gitlab:
+          development:
+            host: gitlab.{{ .Values.appsDomain }}
+            group: {{ .Values.gitlabDiscoveryGroup }}
+            entityFilename: catalog-info.yaml
+            schedule:
+              frequency: {minutes: 15}
+              timeout: {minutes: 5}
+    argocd:
+      appLocatorMethods:
+        - type: config
+          instances:
+            - name: main
+              url: https://openshift-gitops-server-openshift-gitops.{{ .Values.appsDomain }}
+              token: ${ARGOCD_TOKEN}
+    kubernetes:
+      serviceLocatorMethod:
+        type: multiTenant
+      clusterLocatorMethods:
+        - type: config
+          clusters:
+            - name: local
+              url: https://kubernetes.default.svc
+              authProvider: serviceAccount
+              skipTLSVerify: true
+              serviceAccountToken: ${token}
+      customResources:
+        - {group: tekton.dev, apiVersion: v1, plural: pipelineruns}
+        - {group: tekton.dev, apiVersion: v1, plural: taskruns}
+        - {group: route.openshift.io, apiVersion: v1, plural: routes}

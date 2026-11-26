@@ -1,0 +1,35 @@
+apiVersion: rhdh.redhat.com/v1alpha5
+kind: Backstage
+metadata:
+  name: {{ .Values.name }}
+spec:
+  flavours:
+    - name: intelligent-assistant      # on by default in 2.1; no AI backend in this demo
+      enabled: false
+  application:
+    route:
+      host: developer-hub.{{ .Values.appsDomain }}
+    appConfig:
+      configMaps:
+        - name: app-config-base
+        - name: app-config-demo        # from the demo layer (in-cluster GitLab)
+    dynamicPluginsConfigMapName: dynamic-plugins
+    extraEnvs:
+      secrets:
+        - name: rhdh-secrets             # created by bootstrap.sh
+        - name: rhdh-integrations        # GitLab and Argo CD tokens, filled by the seed Jobs
+        - name: rhdh-k8s-reader-token    # becomes the env var 'token'
+          key: token
+  deployment:
+    patch:
+      spec:
+        template:
+          spec:
+            volumes:
+              - name: dynamic-plugins-root
+                ephemeral:
+                  volumeClaimTemplate:
+                    spec:
+                      resources:
+                        requests:
+                          storage: {{ .Values.pluginVolumeSize }}

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: rhdh-demo-root
+description: App of apps for the rhdh-demo environment (one Application per component, in sync waves)
+type: application
+version: 0.1.0

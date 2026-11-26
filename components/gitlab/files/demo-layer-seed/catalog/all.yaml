@@ -1,0 +1,8 @@
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  name: demo-catalog
+  description: Demo catalog entities
+spec:
+  targets:
+    - ./entities.yaml

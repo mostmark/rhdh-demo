@@ -1,0 +1,63 @@
+{{- if not .Values.appsDomain }}{{ fail "appsDomain is required (set by bootstrap.sh)" }}{{ end }}
+{{- $root := . }}
+{{- $apps := list
+  (dict "name" "operators"       "enabled" .Values.components.operators      "wave" "0" "path" "components/operators"       "helm" false)
+  (dict "name" "gitlab"          "enabled" .Values.components.gitlab         "wave" "1" "path" "components/gitlab"          "helm" true  "ns" "gitlab")
+  (dict "name" "keycloak-config" "enabled" .Values.components.keycloakConfig "wave" "1" "path" "components/keycloak-config" "helm" true  "ns" "keycloak")
+  (dict "name" "gitops-config"   "enabled" .Values.components.gitopsConfig   "wave" "1" "path" "components/gitops-config"   "helm" true  "ns" "openshift-gitops")
+  (dict "name" "developer-hub"   "enabled" .Values.components.developerHub   "wave" "3" "path" "components/developer-hub"   "helm" true  "ns" "rhdh")
+}}
+{{- range $apps }}
+{{- if .enabled }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ .name }}
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "{{ .wave }}"
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .ns | default "openshift-gitops" }}
+  source:
+    repoURL: {{ $root.Values.repoURL }}
+    targetRevision: {{ $root.Values.targetRevision }}
+    path: {{ .path }}
+    {{- if .helm }}
+    helm:
+      valuesObject:
+        appsDomain: {{ $root.Values.appsDomain }}
+    {{- end }}
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [SkipDryRunOnMissingResource=true]
+    retry: {limit: 20, backoff: {duration: 30s, factor: 2, maxDuration: 5m}}
+{{- end }}
+{{- end }}
+{{- if .Values.components.demoLayer }}
+---
+# Demo layer: per-demo content (branding, catalog locations, RBAC) in the in-cluster
+# GitLab, seeded by the gitlab component. Change it there, not in this repository.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-layer
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  destination: {server: https://kubernetes.default.svc, namespace: rhdh}
+  source:
+    repoURL: https://gitlab.{{ .Values.appsDomain }}/{{ .Values.demoLayer.repoPath }}.git
+    targetRevision: main
+    path: {{ .Values.demoLayer.path }}
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    retry: {limit: 20, backoff: {duration: 30s, factor: 2, maxDuration: 5m}}
+{{- end }}
