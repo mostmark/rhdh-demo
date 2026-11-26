@@ -16,3 +16,4 @@ seed:
   devGroup: development          # software templates publish here; Developer Hub discovers it
   # Push events of all projects go here (components/ci-triggers EventListener); empty = no hook
   systemHookUrl: http://el-gitlab-push.rhdh-demo-ci.svc.cluster.local:8080
+components: {}                      # set by the root Application (feature toggles)

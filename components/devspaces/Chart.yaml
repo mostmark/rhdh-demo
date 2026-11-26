@@ -1,0 +1,4 @@
+apiVersion: v2
+name: devspaces
+description: Red Hat OpenShift Dev Spaces for the demo (sign-in through OpenShift/Keycloak, GitLab OAuth)
+version: 0.1.0

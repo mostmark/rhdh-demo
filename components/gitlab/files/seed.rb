@@ -1,6 +1,6 @@
 # Seed GitLab for the demo. Runs inside the GitLab pod via `gitlab-rails runner -`.
 # The seed Job prepends: APPS, DEMO_GROUP, DEMO_REPO, DEV_GROUP, SYSTEM_HOOK_URL,
-# CURRENT_TOKEN, FILES.
+# DEVSPACES_URL, DEVSPACES_SECRET_EXISTS, CURRENT_TOKEN, FILES.
 # Idempotent: existing groups, projects and a still-valid token are left alone; the
 # demo-layer repo is only updated while it holds nothing but seed commits.
 
@@ -55,6 +55,26 @@ unless SYSTEM_HOOK_URL.to_s.empty?
   if hook.new_record? || hook.changed?
     hook.save!
     log.call("system hook for push events -> #{SYSTEM_HOOK_URL}")
+  end
+end
+
+# OAuth application for Dev Spaces (clone/push with the user's GitLab identity). GitLab
+# shows the secret only at creation, so recreate it when the cluster Secret is missing.
+unless DEVSPACES_URL.to_s.empty?
+  app_class = defined?(Authn::OauthApplication) ? Authn::OauthApplication : Doorkeeper::Application
+  app_name = 'OpenShift Dev Spaces'
+  if DEVSPACES_SECRET_EXISTS && app_class.find_by(name: app_name)
+    log.call('Dev Spaces OAuth application exists')
+  else
+    app_class.where(name: app_name).destroy_all
+    attrs = { name: app_name, redirect_uri: "#{DEVSPACES_URL}/api/oauth/callback",
+              scopes: 'api write_repository openid', confidential: true }
+    attrs[:trusted] = true if app_class.column_names.include?('trusted')
+    attrs[:organization_id] = org_id if org_id && app_class.column_names.include?('organization_id')
+    app = app_class.create!(attrs)
+    secret = (app.respond_to?(:plaintext_secret) && app.plaintext_secret) || app.secret
+    puts "DEVSPACES_OAUTH=#{app.uid}:#{secret}"
+    log.call('created the Dev Spaces OAuth application')
   end
 end
 

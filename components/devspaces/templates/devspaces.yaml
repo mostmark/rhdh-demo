@@ -1,0 +1,64 @@
+# Dev Spaces at https://devspaces.{{ .Values.appsDomain }}. People sign in with their
+# OpenShift login (Keycloak realm sso); each gets a namespace <user>-devspaces. The
+# GitLab OAuth Secret (devspaces-gitlab-oauth) is written by the gitlab seed Job, so
+# workspaces can clone and push with the user's own GitLab identity.
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: devspaces
+  namespace: openshift-operators
+spec:
+  channel: {{ .Values.channel }}
+  installPlanApproval: Automatic
+  name: devspaces
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openshift-devspaces
+---
+apiVersion: org.eclipse.che/v2
+kind: CheCluster
+metadata:
+  name: devspaces
+  namespace: openshift-devspaces
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  components:
+    cheServer:
+      debug: false
+      logLevel: INFO
+    dashboard: {}
+    pluginRegistry: {}
+  containerRegistry: {}
+  devEnvironments:
+    defaultNamespace:
+      template: <username>-devspaces
+      autoProvision: true
+    secondsOfInactivityBeforeIdling: 1800
+    secondsOfRunBeforeIdling: -1
+    startTimeoutSeconds: 600
+    storage:
+      pvcStrategy: per-user
+  networking: {}
+---
+# Lets the gitlab seed Job (namespace gitlab) write the GitLab OAuth Secret here.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-seed-oauth
+  namespace: openshift-devspaces
+rules:
+  - {apiGroups: [""], resources: [secrets], verbs: [create]}
+  - {apiGroups: [""], resources: [secrets], resourceNames: [devspaces-gitlab-oauth], verbs: [get, patch, delete]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-seed-oauth
+  namespace: openshift-devspaces
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: gitlab-seed-oauth}
+subjects: [{kind: ServiceAccount, name: gitlab-seed, namespace: gitlab}]
