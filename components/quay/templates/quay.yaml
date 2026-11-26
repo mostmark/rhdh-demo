@@ -1,0 +1,143 @@
+# Demo-grade Quay at https://quay.{{ .Values.appsDomain }}: Quay, PostgreSQL and Redis as plain
+# Deployments, images on a PVC (LocalStorage). Secrets are generated in the cluster by
+# the Sync hook Job (wave -1); the first user ({{ .Values.adminUser }}) is created by the PostSync Job.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: quay
+  annotations: {argocd.argoproj.io/sync-wave: "-2"}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: quay-registry}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: {{ .Values.storage.registry }}}}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: quay-postgres}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: {{ .Values.storage.database }}}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: quay-postgres-init}
+data:
+  # sclorg PostgreSQL images run postgresql-start/*.sh on every start
+  pg-trgm.sh: |
+    psql -d quay -c 'CREATE EXTENSION IF NOT EXISTS pg_trgm'
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: quay-postgres, labels: {app: quay-postgres}}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: quay-postgres}}
+  template:
+    metadata: {labels: {app: quay-postgres}}
+    spec:
+      containers:
+        - name: postgres
+          image: {{ .Values.images.postgres }}
+          envFrom: [{secretRef: {name: quay-db}}]
+          ports: [{containerPort: 5432}]
+          readinessProbe:
+            exec: {command: [/usr/libexec/check-container]}
+            initialDelaySeconds: 10
+          resources:
+            requests: {cpu: 50m, memory: 256Mi}
+            limits: {memory: 1Gi}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/pgsql/data}
+            - {name: init, mountPath: /opt/app-root/src/postgresql-start}
+      volumes:
+        - {name: data, persistentVolumeClaim: {claimName: quay-postgres}}
+        - {name: init, configMap: {name: quay-postgres-init}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: quay-postgres}
+spec:
+  selector: {app: quay-postgres}
+  ports: [{port: 5432, targetPort: 5432}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: quay-redis, labels: {app: quay-redis}}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: quay-redis}}
+  template:
+    metadata: {labels: {app: quay-redis}}
+    spec:
+      containers:
+        - name: redis
+          image: {{ .Values.images.redis }}
+          ports: [{containerPort: 6379}]
+          readinessProbe: {tcpSocket: {port: 6379}}
+          resources:
+            requests: {cpu: 20m, memory: 64Mi}
+            limits: {memory: 512Mi}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: quay-redis}
+spec:
+  selector: {app: quay-redis}
+  ports: [{port: 6379, targetPort: 6379}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: quay, labels: {app: quay}}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: quay}}
+  template:
+    metadata: {labels: {app: quay}}
+    spec:
+      containers:
+        - name: quay
+          image: {{ .Values.images.quay }}
+          ports: [{containerPort: 8080, name: http}]
+          env:
+            - {name: QUAY_DISTRIBUTED_STORAGE_PREFERENCE, value: default}
+          readinessProbe:
+            httpGet: {path: /health/instance, port: 8080}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet: {path: /health/instance, port: 8080}
+            initialDelaySeconds: 240
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          resources:
+            requests: {cpu: 200m, memory: 1Gi}
+            limits: {memory: 4Gi}
+          volumeMounts:
+            - {name: config, mountPath: /conf/stack}
+            - {name: registry, mountPath: /datastorage}
+      volumes:
+        - {name: config, secret: {secretName: quay-config}}
+        - {name: registry, persistentVolumeClaim: {claimName: quay-registry}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: quay}
+spec:
+  selector: {app: quay}
+  ports: [{name: http, port: 8080, targetPort: 8080}]
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata: {name: quay}
+spec:
+  host: quay.{{ .Values.appsDomain }}
+  to: {kind: Service, name: quay}
+  port: {targetPort: http}
+  tls: {termination: edge, insecureEdgeTerminationPolicy: Redirect}

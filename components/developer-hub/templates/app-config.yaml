@@ -4,7 +4,11 @@ kind: ConfigMap
 metadata:
   name: dynamic-plugins
 data:
-  dynamic-plugins.yaml: {{ .Files.Get "files/dynamic-plugins.yaml" | quote }}
+  {{- $plugins := .Files.Get "files/dynamic-plugins.yaml" }}
+  {{- if (.Values.components | default dict).quay }}
+  {{- $plugins = printf "%s%s" $plugins (.Files.Get "files/dynamic-plugins-quay.yaml") }}
+  {{- end }}
+  dynamic-plugins.yaml: {{ $plugins | quote }}
 ---
 # Platform defaults. The demo layer's app-config-demo is loaded after this and wins.
 # RHDH 2.1 plugin defaults (catalog index) also read env vars, e.g. GITLAB_HOST,
@@ -67,6 +71,12 @@ data:
             schedule:
               frequency: {minutes: 15}
               timeout: {minutes: 5}
+    {{- if (.Values.components | default dict).quay }}
+    # Quay backend + frontend plugins; the demo's repositories are public, so no token
+    quay:
+      apiUrl: https://quay.{{ .Values.appsDomain }}
+      uiUrl: https://quay.{{ .Values.appsDomain }}
+    {{- end }}
     argocd:
       appLocatorMethods:
         - type: config

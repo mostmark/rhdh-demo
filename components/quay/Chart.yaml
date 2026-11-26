@@ -1,0 +1,4 @@
+apiVersion: v2
+name: quay
+description: Demo-grade Red Hat Quay (single pod, local storage on a PVC; not for production)
+version: 0.1.0

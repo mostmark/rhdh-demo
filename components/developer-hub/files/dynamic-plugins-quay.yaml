@@ -1,0 +1,3 @@
+  # --- Quay (components.quay): community plugins, pinned digests from the RHDH 2.1 community plugin table
+  - {package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-quay@sha256:a682c05c0d532219f275f71fa8dc75339d518a58a24f7887d5724c2ac7286f1a", enabled: true}
+  - {package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-quay-backend@sha256:e82509e66288b01c25191fe66da47c50c0e1fbb12a76b766bab753d12a23e4f9", enabled: true}

@@ -15,7 +15,7 @@ components:
   orchestrator: true      # wave 1: Serverless + Serverless Logic operators, Knative; flavour in the
                           # Backstage CR; wave 4: sample workflow greeting
   devSpaces: true         # wave 0 (before the gitlab seed writes its OAuth Secret): Dev Spaces
-  quay: false             # wave 1: Quay registry (demo-grade, local storage) + Quay plugins
+  quay: true              # wave 1: Quay registry (demo-grade, local storage) + Quay plugins
 
 demoLayer:
   repoPath: demo/rhdh-demo-config
