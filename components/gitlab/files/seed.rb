@@ -43,7 +43,8 @@ unless SYSTEM_HOOK_URL.to_s.empty?
     settings.update!(allow_local_requests_from_system_hooks: true)
     log.call('allowed system hooks to reach in-cluster services')
   end
-  hook = SystemHook.find_or_initialize_by(url: SYSTEM_HOOK_URL)
+  # the URL is stored encrypted, so match in Ruby rather than in SQL
+  hook = SystemHook.all.find { |h| h.url == SYSTEM_HOOK_URL } || SystemHook.new(url: SYSTEM_HOOK_URL)
   hook.assign_attributes(push_events: true, tag_push_events: false, merge_requests_events: false,
                          repository_update_events: false, enable_ssl_verification: false)
   if hook.changed?
