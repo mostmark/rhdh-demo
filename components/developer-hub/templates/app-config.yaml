@@ -83,7 +83,7 @@ data:
             - name: local
               url: https://kubernetes.default.svc
               authProvider: serviceAccount
-              skipTLSVerify: true
+              caFile: /opt/app-root/src/k8s-ca/ca.crt   # skipTLSVerify is ignored in 2.1.0
               serviceAccountToken: ${token}
       customResources:
         - {group: tekton.dev, apiVersion: v1, plural: pipelineruns}

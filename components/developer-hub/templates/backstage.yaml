@@ -20,6 +20,11 @@ spec:
         - name: rhdh-integrations        # GitLab and Argo CD tokens, filled by the seed Jobs
         - name: rhdh-k8s-reader-token    # becomes the env var 'token'
           key: token
+    extraFiles:
+      secrets:
+        - name: rhdh-k8s-reader-token    # cluster CA for the Kubernetes plugins (no SA token mount in the pod)
+          key: ca.crt
+          mountPath: /opt/app-root/src/k8s-ca
   deployment:
     patch:
       spec:
