@@ -39,18 +39,24 @@ ensure_group.call(DEV_GROUP)
 # Push events -> Tekton EventListener (CI for repos created from software templates).
 # A system hook (not per-project webhooks) because no scaffolder action creates webhooks.
 unless SYSTEM_HOOK_URL.to_s.empty?
-  unless settings.allow_local_requests_from_system_hooks
-    settings.update!(allow_local_requests_from_system_hooks: true)
-    log.call('allowed system hooks to reach in-cluster services')
+  # The URL points into the cluster network, which GitLab blocks unless the host is allowed.
+  hook_host = URI.parse(SYSTEM_HOOK_URL).host
+  allowed = Array(settings.outbound_local_requests_whitelist)
+  unless allowed.include?(hook_host)
+    settings.update!(outbound_local_requests_whitelist: allowed + [hook_host])
+    log.call("allowed outbound requests to #{hook_host}")
   end
+  settings.update!(allow_local_requests_from_system_hooks: true) unless settings.allow_local_requests_from_system_hooks
   # the URL is stored encrypted, so match in Ruby rather than in SQL
   hook = SystemHook.all.find { |h| h.url == SYSTEM_HOOK_URL } || SystemHook.new(url: SYSTEM_HOOK_URL)
+  hook.organization_id ||= org_id if org_id && hook.respond_to?(:organization_id=)
   hook.assign_attributes(push_events: true, tag_push_events: false, merge_requests_events: false,
                          repository_update_events: false, enable_ssl_verification: false)
-  if hook.changed?
+  if hook.new_record? || hook.changed?
     hook.save!
     log.call("system hook for push events -> #{SYSTEM_HOOK_URL}")
   end
+end
 end
 
 # Demo layer repository (public: Argo CD reads it without credentials; no secrets in it).
