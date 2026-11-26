@@ -18,7 +18,8 @@ else from this repository.
 | OpenShift Pipelines | Argo CD, Subscription | Tekton for templates and the Tekton tab |
 | GitLab | Argo CD, single `gitlab-ce` container + PVC | In-cluster Git server; sign-in through Keycloak |
 | Keycloak configuration | Argo CD hook Jobs | Uses the cluster's existing Keycloak and realm `sso`: clients (platform), teams and people (from the demo layer) |
-| Apps from templates | `demo-apps` AppProject in the platform Argo CD | Only GitLab sources, `demo-*` namespaces, Namespace as the only cluster-scoped kind |
+| Apps from templates | `demo-apps` AppProject + ApplicationSet `service-apps` in the platform Argo CD | Every repo in GitLab group `development` with a `deploy/` folder becomes an app in `demo-<repo>`; only GitLab sources, `demo-*` namespaces, Namespace as the only cluster-scoped kind |
+| CI for those apps | Argo CD, Tekton EventListener (`rhdh-demo-ci`) + GitLab system hook | Every push to `main` in `development` runs the repo's pipeline `<repo>-ci` |
 | Developer Hub 2.1 | Argo CD, RHDH operator (`fast-2.1`) + `Backstage` CR | Keycloak sign-in, users from Keycloak |
 | Demo layer | Argo CD app reading a repo in the in-cluster GitLab | Branding, teams and people, catalog, workloads: changed per demo without touching this repo |
 
@@ -45,7 +46,9 @@ root Application (Helm chart charts/root) → one Application per component, syn
  wave 0  operators: Pipelines, RHDH operator
  wave 1  gitlab (+ PostSync seed Job: groups, demo-layer repo, Developer Hub token)
          keycloak-config (PostSync Job: clients rhdh and gitlab in realm sso)
-         gitops-config (demo-apps AppProject + PostSync Job: Argo CD token for Developer Hub)
+         gitops-config (demo-apps AppProject, ApplicationSet service-apps,
+                       PostSync Job: Argo CD token for Developer Hub)
+         ci-triggers (EventListener: GitLab pushes start service pipelines)
  wave 2  demo-layer (Application → in-cluster GitLab repo demo/rhdh-demo-config,
          + components/demo-layer-hooks: PostSync org sync Job, teams and people → Keycloak)
  wave 3  developer-hub (ConfigMaps, Backstage CR, Kubernetes reader)
@@ -62,7 +65,8 @@ components/
   gitlab/                         # GitLab Deployment, PVCs, Route, seed Job; files/demo-layer-seed = initial demo layer
   keycloak-config/                # Job: clients in realm sso
   demo-layer-hooks/               # Jobs run on every demo-layer sync: Keycloak org sync
-  gitops-config/                  # demo-apps AppProject, Argo CD token Job
+  gitops-config/                  # demo-apps AppProject, ApplicationSet service-apps, Argo CD token Job
+  ci-triggers/                    # Tekton EventListener for GitLab push events
   developer-hub/                  # Backstage CR, base app-config, dynamic plugins, Kubernetes reader
 docs/                             # design notes, versions, troubleshooting
 ```
@@ -112,6 +116,12 @@ Applications for workloads), `catalog/` (entities, read by Developer Hub) and `a
 (workload manifests). Teams and people live in Keycloak: the org sync Job creates them
 with the demo password and deletes the ones removed from `keycloak-org.yaml`; Developer
 Hub imports them from Keycloak.
+
+Software templates live in the demo repo's `templates/`. The seeded `web-service`
+template creates a repo in `development` with a Dockerfile-style `Containerfile`, a
+Tekton pipeline (git-clone, buildah into the cluster registry, rollout) and manifests in
+`deploy/`; the ApplicationSet deploys it, a sync hook runs the first build, and pushes
+trigger later builds.
 
 The seed Job writes a small sample demo and keeps it current while the repo holds only
 seed commits; after your first commit the repo is yours.
