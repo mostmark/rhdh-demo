@@ -1,0 +1,97 @@
+# GitLab sends push events for all projects to this EventListener (system hook, set up by
+# the gitlab seed Job). For a push to main of development/<name> it starts the Pipeline
+# <name>-ci in namespace demo-<name>, which the repo's deploy/ folder defines (software
+# template "New service"). Pushes to repos without such a pipeline fail harmlessly.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitlab-push-listener
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-push-listener-triggers
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: tekton-triggers-eventlistener-roles}
+subjects: [{kind: ServiceAccount, name: gitlab-push-listener, namespace: {{ .Release.Namespace }}}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: rhdh-demo-gitlab-push-listener-triggers
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: tekton-triggers-eventlistener-clusterroles}
+subjects: [{kind: ServiceAccount, name: gitlab-push-listener, namespace: {{ .Release.Namespace }}}]
+---
+# Creating PipelineRuns in the service namespaces (always {{ .Values.namespacePrefix }}<repo>, see the template below).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: rhdh-demo-start-pipelineruns
+rules:
+  - {apiGroups: [tekton.dev], resources: [pipelineruns], verbs: [create]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: rhdh-demo-gitlab-push-listener-pipelineruns
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: rhdh-demo-start-pipelineruns}
+subjects: [{kind: ServiceAccount, name: gitlab-push-listener, namespace: {{ .Release.Namespace }}}]
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: gitlab-push
+spec:
+  params:
+    - {name: repo, value: $(body.project.name)}
+    - {name: git-url, value: $(body.project.git_http_url)}
+    - {name: git-revision, value: $(body.after)}
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: service-ci
+spec:
+  params:
+    - {name: repo}
+    - {name: git-url}
+    - {name: git-revision}
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: $(tt.params.repo)-ci-
+        namespace: {{ .Values.namespacePrefix }}$(tt.params.repo)
+        labels:
+          backstage.io/kubernetes-id: $(tt.params.repo)
+          tekton.dev/pipeline: $(tt.params.repo)-ci
+      spec:
+        pipelineRef: {name: $(tt.params.repo)-ci}
+        params:
+          - {name: git-url, value: $(tt.params.git-url)}
+          - {name: git-revision, value: $(tt.params.git-revision)}
+        taskRunTemplate: {serviceAccountName: pipeline}
+        workspaces:
+          - name: source
+            volumeClaimTemplate:
+              spec:
+                accessModes: [ReadWriteOnce]
+                resources: {requests: {storage: 1Gi}}
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: gitlab-push
+spec:
+  serviceAccountName: gitlab-push-listener
+  triggers:
+    - name: push-to-main
+      interceptors:
+        - ref: {name: cel}
+          params:
+            - name: filter
+              value: >-
+                body.event_name == 'push' && body.ref == 'refs/heads/main' &&
+                body.project.path_with_namespace.startsWith('{{ .Values.group }}/') &&
+                body.after != '0000000000000000000000000000000000000000'
+      bindings: [{ref: gitlab-push}]
+      template: {ref: service-ci}

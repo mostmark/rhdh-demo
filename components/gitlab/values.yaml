@@ -14,3 +14,5 @@ seed:
   demoGroup: demo                # holds the demo-layer repo
   demoRepo: rhdh-demo-config
   devGroup: development          # software templates publish here; Developer Hub discovers it
+  # Push events of all projects go here (components/ci-triggers EventListener); empty = no hook
+  systemHookUrl: http://el-gitlab-push.rhdh-demo-ci.svc.cluster.local:8080

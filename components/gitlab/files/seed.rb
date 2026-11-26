@@ -1,5 +1,6 @@
 # Seed GitLab for the demo. Runs inside the GitLab pod via `gitlab-rails runner -`.
-# The seed Job prepends: APPS, DEMO_GROUP, DEMO_REPO, DEV_GROUP, CURRENT_TOKEN, FILES.
+# The seed Job prepends: APPS, DEMO_GROUP, DEMO_REPO, DEV_GROUP, SYSTEM_HOOK_URL,
+# CURRENT_TOKEN, FILES.
 # Idempotent: existing groups, projects and a still-valid token are left alone; the
 # demo-layer repo is only updated while it holds nothing but seed commits.
 
@@ -34,6 +35,22 @@ end
 
 demo = ensure_group.call(DEMO_GROUP)
 ensure_group.call(DEV_GROUP)
+
+# Push events -> Tekton EventListener (CI for repos created from software templates).
+# A system hook (not per-project webhooks) because no scaffolder action creates webhooks.
+unless SYSTEM_HOOK_URL.to_s.empty?
+  unless settings.allow_local_requests_from_system_hooks
+    settings.update!(allow_local_requests_from_system_hooks: true)
+    log.call('allowed system hooks to reach in-cluster services')
+  end
+  hook = SystemHook.find_or_initialize_by(url: SYSTEM_HOOK_URL)
+  hook.assign_attributes(push_events: true, tag_push_events: false, merge_requests_events: false,
+                         repository_update_events: false, enable_ssl_verification: false)
+  if hook.changed?
+    hook.save!
+    log.call("system hook for push events -> #{SYSTEM_HOOK_URL}")
+  end
+end
 
 # Demo layer repository (public: Argo CD reads it without credentials; no secrets in it).
 full_path = "#{DEMO_GROUP}/#{DEMO_REPO}"

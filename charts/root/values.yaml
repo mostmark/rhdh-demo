@@ -8,6 +8,7 @@ components:
   gitlab: true            # wave 1: GitLab (+ PostSync seed Job: groups, demo-layer repo, token)
   keycloakConfig: true    # wave 1: clients, groups and users in realm sso
   gitopsConfig: true      # wave 1: demo-apps AppProject, Argo CD token for Developer Hub
+  ciTriggers: true        # wave 1: Tekton EventListener: GitLab pushes start service pipelines
   demoLayer: true         # wave 2: Application for the in-cluster GitLab repo demo/rhdh-demo-config
   developerHub: true      # wave 3: Backstage CR, base app-config, plugins, Kubernetes reader
 

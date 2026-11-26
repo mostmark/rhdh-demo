@@ -77,6 +77,7 @@ spec:
             - {name: DEMO_GROUP, value: {{ .Values.seed.demoGroup | quote }}}
             - {name: DEMO_REPO, value: {{ .Values.seed.demoRepo | quote }}}
             - {name: DEV_GROUP, value: {{ .Values.seed.devGroup | quote }}}
+            - {name: SYSTEM_HOOK_URL, value: {{ .Values.seed.systemHookUrl | quote }}}
           volumeMounts:
             - {name: scripts, mountPath: /seed}
             - {name: files, mountPath: /seed-files}

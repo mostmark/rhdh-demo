@@ -1,0 +1,4 @@
+apiVersion: v2
+name: ci-triggers
+description: Tekton EventListener that starts a service's pipeline on every push to main in GitLab group development
+version: 0.1.0

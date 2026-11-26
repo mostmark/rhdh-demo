@@ -21,6 +21,7 @@ out="$({
   echo "DEMO_GROUP = '${DEMO_GROUP}'"
   echo "DEMO_REPO = '${DEMO_REPO}'"
   echo "DEV_GROUP = '${DEV_GROUP}'"
+  echo "SYSTEM_HOOK_URL = '${SYSTEM_HOOK_URL:-}'"
   echo "CURRENT_TOKEN = Base64.decode64('$(printf %s "$current" | base64 -w0)')"
   echo "FILES = {}"
   for f in /seed-files/*; do

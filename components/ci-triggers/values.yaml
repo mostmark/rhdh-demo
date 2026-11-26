@@ -1,0 +1,3 @@
+appsDomain: ""                      # set by the root Application
+group: development                  # GitLab group whose pushes start pipelines
+namespacePrefix: demo-              # repo <name> runs in namespace demo-<name>, pipeline <name>-ci
