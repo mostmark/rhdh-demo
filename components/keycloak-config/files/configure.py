@@ -4,9 +4,8 @@ Idempotent. Creates or updates:
   - client `rhdh` (Developer Hub sign-in + Keycloak org import; its service account
     gets realm-management query-users, query-groups, view-users)
   - client `gitlab` (GitLab sign-in)
-  - the demo organisation from /config/org.json: groups (a company group with team
-    subgroups) and users with the demo password (permanent, no forced change)
-Never touches the realm import or the existing client `idp-4-ocp`.
+The demo organisation (groups, users) belongs to the demo layer and is applied by the
+demo-layer-hooks org sync Job. Never touches the realm import or the client `idp-4-ocp`.
 """
 import json
 import os
@@ -94,45 +93,6 @@ def grant_realm_management(tok, client_uuid, roles):
     print(f"service account of {client_uuid[:8]}…: {', '.join(roles)}")
 
 
-def find_group(tok, name, parent=None):
-    base = f"/admin/realms/{REALM}"
-    if parent:
-        _, kids = req("GET", f"{base}/groups/{parent}/children?max=500", tok)
-        return next((g for g in kids or [] if g["name"] == name), None)
-    _, top = req("GET", f"{base}/groups?search={urllib.parse.quote(name)}&exact=true&max=100", tok)
-    return next((g for g in top or [] if g["name"] == name), None)
-
-
-def ensure_group(tok, name, parent=None):
-    g = find_group(tok, name, parent)
-    if g:
-        return g["id"]
-    base = f"/admin/realms/{REALM}"
-    path = f"{base}/groups/{parent}/children" if parent else f"{base}/groups"
-    req("POST", path, tok, {"name": name})
-    print(f"group {name}: created")
-    return find_group(tok, name, parent)["id"]
-
-
-def ensure_user(tok, user, password, group_ids):
-    base = f"/admin/realms/{REALM}/users"
-    _, found = req("GET", f"{base}?username={urllib.parse.quote(user['username'])}&exact=true", tok)
-    rep = {"username": user["username"], "email": user["email"], "firstName": user["firstName"],
-           "lastName": user["lastName"], "enabled": True, "emailVerified": True}
-    if found:
-        uid = found[0]["id"]
-        req("PUT", f"{base}/{uid}", tok, {**found[0], **rep})
-    else:
-        req("POST", f"{base}", tok, rep)
-        _, found = req("GET", f"{base}?username={urllib.parse.quote(user['username'])}&exact=true", tok)
-        uid = found[0]["id"]
-        print(f"user {user['username']}: created")
-    req("PUT", f"{base}/{uid}/reset-password", tok,
-        {"type": "password", "value": password, "temporary": False})
-    for gid in group_ids:
-        req("PUT", f"{base}/{uid}/groups/{gid}", tok)
-
-
 def main():
     tok = admin_token()
     rhdh_host = f"developer-hub.{APPS}"
@@ -144,16 +104,6 @@ def main():
     ensure_client(tok, "gitlab", os.environ["GITLAB_CLIENT_SECRET"],
                   [f"https://{gitlab_host}/users/auth/openid_connect/callback"],
                   [f"https://{gitlab_host}"])
-
-    with open("/config/org.json") as f:
-        org = json.load(f)
-    company = ensure_group(tok, org["company"])
-    teams = {t["name"]: ensure_group(tok, t["name"], company) for t in org["teams"]}
-    for t in org["teams"]:
-        for u in t["members"]:
-            ensure_user(tok, u, os.environ["DEMO_PASSWORD"], [teams[t["name"]]])
-    print(f"organisation {org['company']}: {len(org['teams'])} teams, "
-          f"{sum(len(t['members']) for t in org['teams'])} users")
 
 
 if __name__ == "__main__":

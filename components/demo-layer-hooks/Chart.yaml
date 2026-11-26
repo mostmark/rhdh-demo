@@ -1,0 +1,4 @@
+apiVersion: v2
+name: demo-layer-hooks
+description: Platform-owned hooks that run on every demo-layer sync (Keycloak org sync)
+version: 0.1.0

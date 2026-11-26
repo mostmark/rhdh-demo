@@ -1,0 +1,47 @@
+# Runs after every sync of the demo-layer Application: applies the demo organisation from
+# the demo layer's ConfigMap keycloak/demo-org (key org.json) to realm {{ .Values.realm }}.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rhdh-demo-org-sync
+  namespace: keycloak
+data:
+  sync_org.py: {{ .Files.Get "files/sync_org.py" | quote }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rhdh-demo-org-sync
+  namespace: keycloak
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 1200
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: sync
+          image: {{ .Values.image }}
+          command: [python3, /script/sync_org.py]
+          env:
+            - {name: KEYCLOAK_URL, value: "https://sso.{{ .Values.appsDomain }}"}
+            - {name: REALM, value: {{ .Values.realm | quote }}}
+            - {name: ORG_FILE, value: /org/org.json}
+            - name: KC_ADMIN_USER
+              valueFrom: {secretKeyRef: {name: keycloak-initial-admin, key: username}}
+            - name: KC_ADMIN_PASSWORD
+              valueFrom: {secretKeyRef: {name: keycloak-initial-admin, key: password}}
+            - name: DEMO_PASSWORD
+              valueFrom: {secretKeyRef: {name: demo-credentials, key: DEMO_PASSWORD}}
+          volumeMounts:
+            - {name: script, mountPath: /script}
+            - {name: org, mountPath: /org}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {memory: 256Mi}
+      volumes:
+        - {name: script, configMap: {name: rhdh-demo-org-sync}}
+        - {name: org, configMap: {name: demo-org, optional: true}}

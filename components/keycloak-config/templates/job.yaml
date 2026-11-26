@@ -4,7 +4,6 @@ metadata:
   name: rhdh-demo-keycloak-config
 data:
   configure.py: {{ .Files.Get "files/configure.py" | quote }}
-  org.json: {{ .Values.org | toJson | quote }}
 ---
 apiVersion: batch/v1
 kind: Job
@@ -31,8 +30,6 @@ spec:
               valueFrom: {secretKeyRef: {name: keycloak-initial-admin, key: username}}
             - name: KC_ADMIN_PASSWORD
               valueFrom: {secretKeyRef: {name: keycloak-initial-admin, key: password}}
-            - name: DEMO_PASSWORD
-              valueFrom: {secretKeyRef: {name: demo-credentials, key: DEMO_PASSWORD}}
             - name: RHDH_CLIENT_SECRET
               valueFrom: {secretKeyRef: {name: demo-credentials, key: RHDH_CLIENT_SECRET}}
             - name: GITLAB_CLIENT_SECRET

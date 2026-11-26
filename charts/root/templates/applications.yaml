@@ -53,10 +53,17 @@ metadata:
 spec:
   project: default
   destination: {server: https://kubernetes.default.svc, namespace: rhdh}
-  source:
-    repoURL: https://gitlab.{{ .Values.appsDomain }}/{{ .Values.demoLayer.repoPath }}.git
-    targetRevision: main
-    path: {{ .Values.demoLayer.path }}
+  sources:
+    - repoURL: https://gitlab.{{ .Values.appsDomain }}/{{ .Values.demoLayer.repoPath }}.git
+      targetRevision: main
+      path: {{ .Values.demoLayer.path }}
+    # Platform-owned hooks that run on every demo-layer sync (Keycloak org sync).
+    - repoURL: {{ .Values.repoURL }}
+      targetRevision: {{ .Values.targetRevision }}
+      path: components/demo-layer-hooks
+      helm:
+        valuesObject:
+          appsDomain: {{ .Values.appsDomain }}
   syncPolicy:
     automated: {prune: true, selfHeal: true}
     retry: {limit: 20, backoff: {duration: 30s, factor: 2, maxDuration: 5m}}

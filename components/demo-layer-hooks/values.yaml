@@ -1,0 +1,3 @@
+appsDomain: ""                      # set by the root Application
+realm: sso
+image: registry.access.redhat.com/ubi9/python-312:latest

@@ -1,0 +1,28 @@
+# The demo organisation: teams and people, applied to Keycloak realm sso by the platform's
+# org sync Job after every demo-layer sync. Developer Hub imports them from Keycloak.
+# People sign in with the demo password (Secret keycloak/demo-credentials). Removing a
+# team or person here removes it from Keycloak (and from the catalog).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-org
+  namespace: keycloak
+data:
+  org.json: |
+    {
+      "company": {"name": "demo-company", "displayName": "Demo Company",
+                  "description": "Sample organisation (fictitious)"},
+      "teams": [
+        {"name": "platform-team", "displayName": "Platform Team",
+         "description": "Runs the platform and the developer portal",
+         "members": [
+           {"username": "platform1", "firstName": "Pat", "lastName": "Platform", "email": "platform1@demo.example"}
+         ]},
+        {"name": "app-team", "displayName": "App Team",
+         "description": "Builds the sample services",
+         "members": [
+           {"username": "developer1", "firstName": "Dana", "lastName": "Developer", "email": "developer1@demo.example"},
+           {"username": "developer2", "firstName": "Devon", "lastName": "Coder", "email": "developer2@demo.example"}
+         ]}
+      ]
+    }
