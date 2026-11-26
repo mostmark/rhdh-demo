@@ -57,7 +57,6 @@ unless SYSTEM_HOOK_URL.to_s.empty?
     log.call("system hook for push events -> #{SYSTEM_HOOK_URL}")
   end
 end
-end
 
 # Demo layer repository (public: Argo CD reads it without credentials; no secrets in it).
 full_path = "#{DEMO_GROUP}/#{DEMO_REPO}"
