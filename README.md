@@ -4,7 +4,7 @@ Bootstrap an empty OpenShift cluster into a Red Hat Developer Hub (RHDH) 2.1 dem
 environment: one script installs OpenShift GitOps, then Argo CD installs everything
 else from this repository.
 
-> **Status: work in progress** (branch `wip`), verified on a single-node OpenShift 4.22
+> **Status:** `main` is verified with a fresh bootstrap on a single-node OpenShift 4.22
 > cluster: Developer Hub 2.1.0 with Keycloak sign-in and users/groups from Keycloak,
 > GitLab, a demo layer with catalog, workloads and a software template (GitLab repo,
 > Tekton build, Argo CD deployment), plus the Orchestrator, Dev Spaces and Quay.
