@@ -12,6 +12,8 @@ metadata:
 rules:
   - {apiGroups: [""], resources: [secrets], verbs: [create]}
   - {apiGroups: [""], resources: [secrets], resourceNames: [quay-db, quay-config, quay-admin], verbs: [get]}
+  - {apiGroups: [""], resources: [secrets], resourceNames: [quay-config, quay-admin], verbs: [patch]}
+  - {apiGroups: [apps], resources: [deployments], resourceNames: [quay], verbs: [get, patch]}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -29,6 +31,7 @@ metadata:
 data:
   make-secrets.sh: {{ .Files.Get "files/make-secrets.sh" | quote }}
   init-admin.sh: {{ .Files.Get "files/init-admin.sh" | quote }}
+  mint-token.py: {{ .Files.Get "files/mint-token.py" | quote }}
 ---
 apiVersion: batch/v1
 kind: Job
@@ -51,6 +54,7 @@ spec:
           env:
             - {name: APPS_DOMAIN, value: {{ .Values.appsDomain | quote }}}
             - {name: ADMIN_USER, value: {{ .Values.adminUser | quote }}}
+            - {name: SCANNER_ENDPOINT, value: {{ .Values.scanner.endpoint | quote }}}
           volumeMounts: [{name: scripts, mountPath: /scripts}]
           resources: {requests: {cpu: 10m, memory: 32Mi}, limits: {memory: 128Mi}}
       volumes: [{name: scripts, configMap: {name: quay-setup-scripts}}]
@@ -75,6 +79,10 @@ spec:
           command: [/bin/bash, /scripts/init-admin.sh]
           env:
             - {name: ADMIN_USER, value: {{ .Values.adminUser | quote }}}
+            - {name: APPS_DOMAIN, value: {{ .Values.appsDomain | quote }}}
+            - {name: ORG, value: {{ .Values.automation.org | quote }}}
+            - {name: APP, value: {{ .Values.automation.app | quote }}}
+            - {name: SCOPES, value: {{ .Values.automation.scopes | quote }}}
           volumeMounts: [{name: scripts, mountPath: /scripts}]
           resources: {requests: {cpu: 10m, memory: 32Mi}, limits: {memory: 128Mi}}
       volumes: [{name: scripts, configMap: {name: quay-setup-scripts}}]

@@ -10,3 +10,13 @@ storage:
   registry: 30Gi
   database: 5Gi
 adminUser: quayadmin
+# Security scanning is on and points at Clair's future in-namespace Service. Until Clair
+# runs there, tags show "Queued" (TODO: install Clair for real scan results).
+scanner:
+  endpoint: http://clair:8080
+# OAuth application whose 10-year token (Secret quay-admin, key token) the demo layer's
+# Quay hook uses to create organizations and repositories and push images.
+automation:
+  org: platform
+  app: rhdh-demo-automation
+  scopes: repo:read repo:write repo:admin repo:create user:read user:admin org:admin
