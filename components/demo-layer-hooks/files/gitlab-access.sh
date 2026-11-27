@@ -16,4 +16,4 @@ done
   echo "DEV_GROUP = '${DEV_GROUP}'"
   echo "DRY_RUN = ${DRY_RUN:-false}"
   cat /script/gitlab-access.rb
-} | oc exec -i -n gitlab deploy/gitlab -- gitlab-rails runner - 2>&1 | grep -E '^access:|Error|error' | head -60
+} | oc exec -i -n gitlab deploy/gitlab -- gitlab-rails runner - 2>&1 | grep -E '^access:|Error|error'
