@@ -133,7 +133,7 @@ unless SYSTEM_HOOK_URL.to_s.empty?
   release_hook = lambda do |project|
     next if project.hooks.any? { |h| h.url == SYSTEM_HOOK_URL }
 
-    project.hooks.create!(url: SYSTEM_HOOK_URL, release_events: true, push_events: false,
+    project.hooks.create!(url: SYSTEM_HOOK_URL, releases_events: true, push_events: false,
                           tag_push_events: false, merge_requests_events: false,
                           enable_ssl_verification: false)
     log.call("release webhook for #{project.full_path}")

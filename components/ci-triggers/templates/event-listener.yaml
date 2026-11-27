@@ -156,7 +156,7 @@ spec:
                   echo "$(params.project): release webhook exists"; exit 0
                 fi
                 curl -sf -o /dev/null -X POST -H "PRIVATE-TOKEN: $TOKEN" "$API" \
-                  --data-urlencode "url=$HOOK" -d release_events=true -d push_events=false \
+                  --data-urlencode "url=$HOOK" -d releases_events=true -d push_events=false \
                   -d tag_push_events=false -d enable_ssl_verification=false
                 echo "$(params.project): added the release webhook"
               resources:
