@@ -13,12 +13,16 @@ exists() { oc get istag "{{ .Values.image.stream }}:$1" >/dev/null 2>&1; }
 copy() { oc tag "{{ .Values.image.stream }}:$1" "{{ .Values.image.stream }}:$2" >/dev/null; echo "image {{ .Values.image.stream }}:$2 <- :$1"; }
 {{- end }}
 restart() {
-  if oc get deployment/{{ .Values.deployment }} -n "$1" >/dev/null 2>&1; then
-    oc rollout restart deployment/{{ .Values.deployment }} -n "$1"
-    oc rollout status deployment/{{ .Values.deployment }} -n "$1" --timeout=5m
-  else
-    echo "$1: no Deployment yet; Argo CD creates it with the new image"
+  if ! oc get deployment/{{ .Values.deployment }} -n "$1" >/dev/null 2>&1; then
+    echo "$1: no Deployment yet; Argo CD creates it with the new image"; return
   fi
+  if [ "$(oc get deployment/{{ .Values.deployment }} -n "$1" -o jsonpath='{.spec.replicas}')" = 0 ]; then
+    oc patch deployment/{{ .Values.deployment }} -n "$1" --type merge -p '{"spec":{"replicas":1}}' >/dev/null
+    echo "$1: first promotion, scaled up"
+  else
+    oc rollout restart deployment/{{ .Values.deployment }} -n "$1"
+  fi
+  oc rollout status deployment/{{ .Values.deployment }} -n "$1" --timeout=5m
 }
 {{- end }}
 

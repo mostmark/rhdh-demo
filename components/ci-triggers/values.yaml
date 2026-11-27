@@ -1,3 +1,4 @@
 appsDomain: ""                      # set by the root Application
 group: development                  # GitLab group whose pushes start pipelines
 namespacePrefix: demo-              # repo <name> runs in namespace demo-<name>, pipeline <name>-ci
+cliImage: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest

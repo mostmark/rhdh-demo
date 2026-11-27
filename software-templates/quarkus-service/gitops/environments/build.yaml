@@ -4,8 +4,8 @@ name: ${{ values.component }}-build
 namespace: ${{ values.buildNamespace }}
 chart: helm/build
 component: ${{ values.component }}
-# dev gets every build; preprod and prod start from the first build, then only change by
-# promotion (Git tag v1.0 -> preprod, prod-v1.0 -> prod)
+# dev gets every build; preprod and prod only get images by promotion: a Git tag (v1.0)
+# copies the dev image to preprod, a GitLab release copies the image of its tag to prod
 environments:
   - {name: dev, namespace: demo-${{ values.component }}-dev}
   - {name: preprod, namespace: demo-${{ values.component }}-preprod, from: latest}

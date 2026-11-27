@@ -1,5 +1,5 @@
 # The pipelines (service account "pipeline" in the build namespace) restart this
-# Deployment when a new image is ready.
+# Deployment when a new image is ready, and scale it up at its first promotion.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:

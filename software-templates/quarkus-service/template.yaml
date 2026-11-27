@@ -6,8 +6,8 @@ metadata:
   description: >-
     Create a simple microservice using Quarkus with Argo CD and a Tekton pipeline: an
     application repository, a GitOps repository and three environments (dev, preprod,
-    prod). Every push to main builds and deploys to dev; a Git tag promotes to preprod
-    (v1.0) or prod (prod-v1.0).
+    prod). Every push to main builds and deploys to dev; a Git tag (v1.0) promotes to
+    preprod and a GitLab release of that tag promotes to prod.
   tags:
     - recommended
     - java
@@ -182,8 +182,9 @@ spec:
           Argo CD creates four applications within a minute: **${{ parameters.component_id }}-build**
           (Tekton pipelines in namespace demo-${{ parameters.component_id }}) and
           **${{ parameters.component_id }}-dev**, **-preprod**, **-prod**. The first build takes a
-          few minutes (Maven downloads); then all three environments run the same image.
+          few minutes (Maven downloads) and deploys to dev; preprod and prod stay empty until
+          something is promoted to them.
 
           - Push to `main` → build and deploy to **dev**.
-          - Push a tag `v1.0` → promote the dev image to **preprod**.
-          - Push a tag `prod-v1.0` → promote the preprod image to **prod**.
+          - Create a tag (e.g. `v1.0`) → promote the dev image to **preprod**.
+          - Create a release of that tag → promote that version to **prod**.

@@ -7,7 +7,7 @@ only seed commits. Developer Hub discovers `catalog-info.yaml` there.
 
 | Template | Creates |
 |---|---|
-| `quarkus-service`: *Quarkus Service with ArgoCD and a Tekton Pipeline* | `development/<name>` (Quarkus app) and `development/<name>-gitops`; Argo CD apps `<name>-build`, `-dev`, `-preprod`, `-prod`. Push to `main` → build + dev; tag `v1.0` → preprod; tag `prod-v1.0` → prod |
+| `quarkus-service`: *Quarkus Service with ArgoCD and a Tekton Pipeline* | `development/<name>` (Quarkus app) and `development/<name>-gitops`; Argo CD apps `<name>-build`, `-dev`, `-preprod`, `-prod`. Push to `main` → build + dev; tag `v1.0` → preprod; release of that tag → prod (preprod and prod empty until promoted) |
 | `poi-backend`, `poi-gateway`, `poi-map`: the points-of-interest workshop | A Quarkus backend (national parks), a Quarkus gateway (REST + WebSocket) and an Angular map, all three in one workshop space `demo-<space>`; each push to `main` builds and deploys |
 
 How they run on this platform:
@@ -15,7 +15,8 @@ How they run on this platform:
   makes one Application per file, in the owner team's project `team-<team>` (GitLab topic).
 - The Helm charts come from `_shared/charts` (`app`: Deployment, Service, Route; `build`:
   Tekton pipelines `<repo>-ci` and `<repo>-promote`, first build).
-- GitLab's system hook sends pushes and tags to the EventListener in `rhdh-demo-ci`.
+- GitLab's system hook sends pushes and tags to the EventListener in `rhdh-demo-ci`;
+  releases come through a project webhook that every repo in `development` gets.
 - Images go to the cluster registry (ImageStream in `demo-<repo>`) or to Quay, organization
   `development`, with the robot credentials in Secret `quay/quay-ci-push`.
 

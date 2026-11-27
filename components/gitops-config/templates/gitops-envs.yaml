@@ -58,8 +58,9 @@ spec:
         automated: {prune: true, selfHeal: true}
         syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true]
         retry: {limit: 10, backoff: {duration: 30s, factor: 2, maxDuration: 5m}}
-      # pipelines restart Deployments to roll out new images
+      # pipelines restart Deployments to roll out new images, and scale up preprod/prod
+      # (replicas 0 in Git) at their first promotion
       ignoreDifferences:
         - group: apps
           kind: Deployment
-          jsonPointers: [/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt]
+          jsonPointers: [/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt, /spec/replicas]

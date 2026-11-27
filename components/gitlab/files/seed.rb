@@ -1,7 +1,8 @@
 # Seed GitLab for the demo. Runs inside the GitLab pod via `gitlab-rails runner -`.
 # The seed Job prepends: APPS, DEMO_GROUP, DEMO_REPO, DEV_GROUP, SYSTEM_HOOK_URL,
 # DEVSPACES_URL, DEVSPACES_SECRET_EXISTS, CURRENT_TOKEN, FILES, TEMPLATES_SRC (a folder in
-# the GitLab pod, or empty), TEMPLATES_GROUP, TEMPLATES_REPO, TEMPLATES_REVISION.
+# the GitLab pod, or empty), TEMPLATES_GROUP, TEMPLATES_REPO, TEMPLATES_REVISION,
+# CURRENT_HOOKS_TOKEN.
 # Idempotent: existing groups, projects and a still-valid token are left alone; the
 # demo-layer repo is only updated while it holds nothing but seed commits.
 
@@ -120,6 +121,57 @@ elsif repo.commits('main', limit: 1000).all? { |c| c.safe_message.to_s.start_wit
   end
 else
   log.call("#{full_path} has commits besides the seed; not touched")
+end
+
+# Release events -> the same EventListener (a GitLab release promotes to prod). System hooks
+# don't carry release events, so every repo in DEV_GROUP gets a project webhook. Existing
+# repos get it here; new ones from the EventListener (first push), which uses the token of
+# the bot below: Maintainer of DEV_GROUP only (project hooks need Maintainer), not an admin.
+unless SYSTEM_HOOK_URL.to_s.empty?
+  dev_group = Group.find_by_full_path(DEV_GROUP)
+  # (the EventListener host is on the outbound allowlist set above, which covers webhooks)
+  release_hook = lambda do |project|
+    next if project.hooks.any? { |h| h.url == SYSTEM_HOOK_URL }
+
+    project.hooks.create!(url: SYSTEM_HOOK_URL, release_events: true, push_events: false,
+                          tag_push_events: false, merge_requests_events: false,
+                          enable_ssl_verification: false)
+    log.call("release webhook for #{project.full_path}")
+  end
+  dev_group.projects.each { |pr| release_hook.call(pr) }
+
+  bot_name = 'rhdh-ci-hooks'
+  bot = User.find_by_username(bot_name)
+  unless bot
+    pw = SecureRandom.base64(32)
+    params = { username: bot_name, email: "#{bot_name}@demo.example", name: 'CI webhooks (rhdh-demo)',
+               password: pw, password_confirmation: pw, password_automatically_set: true,
+               skip_confirmation: true }
+    params[:organization_id] = org_id if org_id
+    res = Users::CreateService.new(root, params).execute
+    bot = res.respond_to?(:payload) ? res.payload[:user] : res
+    raise "user #{bot_name}: #{bot&.errors&.full_messages&.join(', ') || res.try(:message)}" unless bot&.persisted?
+
+    log.call("created user #{bot_name}")
+  end
+  if dev_group.max_member_access_for_user(bot) < Gitlab::Access::MAINTAINER
+    dev_group.add_member(bot, Gitlab::Access::MAINTAINER)
+    log.call("#{bot_name} is Maintainer of #{DEV_GROUP}")
+  end
+  htoken = (PersonalAccessToken.find_by_token(CURRENT_HOOKS_TOKEN) rescue nil) unless CURRENT_HOOKS_TOKEN.to_s.empty?
+  if htoken&.active? && htoken.user_id == bot.id
+    log.call('CI webhook token still valid')
+  else
+    bot.personal_access_tokens.where(name: bot_name).each { |t| t.revoke! rescue nil }
+    attrs = { name: bot_name, scopes: %w[api], expires_at: 364.days.from_now.to_date }
+    pat = begin
+      bot.personal_access_tokens.create!(org_id ? attrs.merge(organization_id: org_id) : attrs)
+    rescue ActiveModel::UnknownAttributeError, ActiveRecord::UnknownAttributeError
+      bot.personal_access_tokens.create!(attrs)
+    end
+    puts "CI_HOOKS_TOKEN=#{pat.token}"
+    log.call('created a new CI webhook token')
+  end
 end
 
 # Platform software templates: the platform repo's software-templates/ folder (fetched into

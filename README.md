@@ -21,9 +21,9 @@ else from this repository.
 | GitLab | Argo CD, single `gitlab-ce` container + PVC | In-cluster Git server; sign-in through Keycloak |
 | Keycloak configuration | Argo CD hook Jobs | Uses the cluster's existing Keycloak and realm `sso`: clients (platform), teams and people (from the demo layer) |
 | Apps from templates | `demo-apps` AppProject + ApplicationSet `service-apps` in the platform Argo CD | Every repo in GitLab group `development` with a `deploy/` folder becomes an app in `demo-<repo>`, in the owning team's project `team-<team>` (GitLab topic set by the template) or else `demo-apps`; only GitLab sources, `demo-*` namespaces, Namespace as the only cluster-scoped kind |
-| Platform software templates | `software-templates/`, seeded into GitLab `platform/software-templates`, discovered by Developer Hub | *Quarkus Service with ArgoCD and a Tekton Pipeline* (dev/preprod/prod, promotion by Git tag) and the points-of-interest workshop (backend, gateway, map), ported from Red Hat's RHDP and Summit content; every demo gets them |
+| Platform software templates | `software-templates/`, seeded into GitLab `platform/software-templates`, discovered by Developer Hub | *Quarkus Service with ArgoCD and a Tekton Pipeline* (dev/preprod/prod; tag → preprod, release → prod) and the points-of-interest workshop (backend, gateway, map), ported from Red Hat's RHDP and Summit content; every demo gets them |
 | Apps from GitOps repos | ApplicationSet `gitops-envs` | One Argo CD app per `environments/<env>.yaml` in a repo of `development` (the templates' `-gitops` repos), in the owner team's project |
-| CI for those apps | Argo CD, Tekton EventListener (`rhdh-demo-ci`) + GitLab system hook | Every push to `main` in `development` runs the repo's pipeline `<repo>-ci`; a tag runs `<repo>-promote` (`prod-*` → prod, else preprod) |
+| CI for those apps | Argo CD, Tekton EventListener (`rhdh-demo-ci`) + GitLab system hook | Every push to `main` in `development` runs the repo's pipeline `<repo>-ci`; a tag runs `<repo>-promote` to preprod, a GitLab release to prod (project webhook per repo, added by bot `rhdh-ci-hooks`) |
 | Developer Hub 2.1 | Argo CD, RHDH operator (`fast-2.1`) + `Backstage` CR | Keycloak sign-in, users from Keycloak, RBAC per team (*Administration → RBAC*) |
 | Team access | Demo-layer hook Job `team-access` | From the demo organisation: Developer Hub roles (platform team → `platform-admin`, other teams → `developer`), one OpenShift group and one Argo CD project per team (each team sees its own apps) |
 | Demo layer | Argo CD app reading a repo in the in-cluster GitLab | Branding, teams and people, catalog, workloads: changed per demo without touching this repo |
@@ -197,6 +197,11 @@ seed commits; after your first commit the repo is yours.
   organization `platform` (10 years; repository and organization admin scopes, user
   admin to create organizations, no superuser scope). Revoke it there if needed; a
   sync of the `quay` application issues a new one.
+- Release webhooks: the bot user `rhdh-ci-hooks` is Maintainer of `development` (project
+  webhooks need Maintainer) and nothing else; its token (Secret
+  `rhdh-demo-ci/gitlab-hooks-token`, 1 year, renewed by the seed) lets the EventListener add
+  a release webhook to each new repo. GitLab may call only the EventListener's cluster-local
+  host (outbound allowlist), not other local addresses.
 - Template pipelines push to Quay with the robot `development+ci` (team `ci`, role
   creator in organization `development`). Its credentials are in Secret
   `quay/quay-ci-push`, which every service account may read (RBAC can't name "every

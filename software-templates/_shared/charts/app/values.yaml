@@ -9,6 +9,9 @@ image:
   repository: ${{ values.imageRepository }}
   tag: latest
 host: ""
+# 0 for environments that only get images by promotion (preprod, prod): the promotion
+# pipeline scales them up the first time (Argo CD ignores replicas, see gitops-envs)
+replicas: 1
 port: ${{ values.port }}
 # the pipelines run in this namespace and restart the Deployment after a new image
 buildNamespace: ${{ values.buildNamespace }}

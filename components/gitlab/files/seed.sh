@@ -30,6 +30,7 @@ if [ -n "${PLATFORM_REPO:-}" ] && [ -n "${PLATFORM_REVISION:-}" ]; then
 fi
 
 current="$(oc get secret rhdh-integrations -n rhdh -o jsonpath='{.data.GITLAB_TOKEN}' | base64 -d)"
+hooks_token="$(oc get secret gitlab-hooks-token -n rhdh-demo-ci -o jsonpath='{.data.token}' 2>/dev/null | base64 -d || true)"
 [ "$current" = pending ] && current=""
 
 out="$({
@@ -46,6 +47,7 @@ out="$({
   echo "TEMPLATES_GROUP = '${TEMPLATES_GROUP:-platform}'"
   echo "TEMPLATES_REPO = '${TEMPLATES_REPO:-software-templates}'"
   echo "TEMPLATES_REVISION = '${PLATFORM_REVISION:-}'"
+  echo "CURRENT_HOOKS_TOKEN = Base64.decode64('$(printf %s "$hooks_token" | base64 -w0)')"
   echo "FILES = {}"
   for f in /seed-files/*; do
     key="$(basename "$f")"
@@ -60,6 +62,17 @@ if [ -n "$token" ]; then
   oc patch secret rhdh-integrations -n rhdh --type merge \
     -p "{\"stringData\":{\"GITLAB_TOKEN\":\"${token}\"}}" >/dev/null
   echo "stored the new token in rhdh/rhdh-integrations"
+fi
+htoken="$(echo "$out" | sed -n 's/^CI_HOOKS_TOKEN=//p' | tail -1)"
+if [ -n "$htoken" ]; then
+  # the EventListener's webhook task (namespace rhdh-demo-ci) adds release webhooks to new repos
+  for _ in $(seq 1 30); do oc get namespace rhdh-demo-ci >/dev/null 2>&1 && break; sleep 10; done
+  if oc get secret gitlab-hooks-token -n rhdh-demo-ci >/dev/null 2>&1; then
+    oc patch secret gitlab-hooks-token -n rhdh-demo-ci --type merge -p "{\"stringData\":{\"token\":\"${htoken}\"}}" >/dev/null
+  else
+    oc create secret generic gitlab-hooks-token -n rhdh-demo-ci --from-literal=token="${htoken}" >/dev/null
+  fi
+  echo "stored the CI webhook token in rhdh-demo-ci/gitlab-hooks-token"
 fi
 oauth="$(echo "$out" | sed -n 's/^DEVSPACES_OAUTH=//p' | tail -1)"
 if [ -n "$oauth" ]; then

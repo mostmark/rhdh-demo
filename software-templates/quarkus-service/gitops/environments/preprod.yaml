@@ -6,3 +6,5 @@ environment: preprod
 image:
   tag: preprod
 host: ${{ values.component }}-preprod.__APPS_DOMAIN__
+# no pods until the first promotion scales it up
+replicas: 0

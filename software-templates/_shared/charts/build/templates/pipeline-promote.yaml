@@ -1,7 +1,10 @@
 {{- if .Values.promote }}
-# Promotion on a Git tag (EventListener in rhdh-demo-ci): tag v1.2 -> target preprod, tag
-# prod-v1.2 -> target prod. Copies the image of the environment before the target (its
-# "from" tag) to the target's tag and to the Git tag, and restarts the target.
+# Promotion (EventListener in rhdh-demo-ci): a new Git tag -> target preprod, a new GitLab
+# release -> target prod. The image comes from the target's "from" tag (preprod: latest,
+# the dev build), except when an image with the Git tag's name exists (the version an
+# earlier tag promoted; a release made with a new tag waits up to 2 minutes for the tag's
+# own promotion): then exactly that version. The image is also tagged with the Git tag,
+# and the target is restarted (or scaled up at its first promotion).
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
@@ -32,10 +35,22 @@ spec:
         - name: SCRIPT
           value: |
             {{- include "build.functions" . | nindent 12 }}
+            tag="$(params.tag)"
+            promote() { # from target namespace
+              src=$1
+              if [ "$src" != latest ]; then
+                for _ in $(seq 1 24); do exists "$tag" && break; sleep 5; done
+              fi
+              if exists "$tag" && [ "$src" != latest ]; then src=$tag; fi
+              exists "$src" || { echo "no image :$src to promote; promote to the previous environment first"; exit 1; }
+              copy "$src" "$2"
+              [ "$src" = "$tag" ] || copy "$src" "$tag"
+              restart "$3"
+            }
             case "$(params.target)" in
             {{- range .Values.environments }}
             {{- if .from }}
-              {{ .name }}) copy {{ .from }} {{ .name }}; copy {{ .from }} "$(params.tag)"; restart {{ .namespace }} ;;
+              {{ .name }}) promote {{ .from }} {{ .name }} {{ .namespace }} ;;
             {{- end }}
             {{- end }}
               *) echo "no environment $(params.target) to promote to"; exit 1 ;;

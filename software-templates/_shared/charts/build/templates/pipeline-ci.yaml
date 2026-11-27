@@ -1,6 +1,6 @@
 # Build on every push to main: clone, build the image (Containerfile), push it with tag
-# latest, roll out the first environment. Environments with "from" get their first image
-# here too, then only by promotion.
+# latest, roll out the environments without "from" (dev). The others only get images by
+# promotion (pipeline-promote).
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
@@ -61,8 +61,6 @@ spec:
             {{- range .Values.environments }}
             {{- if not .from }}
             restart {{ .namespace }}
-            {{- else }}
-            if ! exists {{ .name }}; then copy {{ .from }} {{ .name }}; restart {{ .namespace }}; fi
             {{- end }}
             {{- end }}
       workspaces:

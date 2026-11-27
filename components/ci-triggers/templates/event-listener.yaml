@@ -1,8 +1,11 @@
 # GitLab sends push and tag events for all projects to this EventListener (system hook,
-# set up by the gitlab seed Job). For development/<name>:
+# set up by the gitlab seed Job), and release events through a project webhook on every
+# repo of {{ .Values.group }} (system hooks don't carry them). For {{ .Values.group }}/<name>:
 #   - a push to main starts the Pipeline <name>-ci in namespace demo-<name>;
-#   - a new tag starts <name>-promote there, with target 'prod' for tags prod-*, else
-#     'preprod' (GitLab CE system hooks don't send release events).
+#   - a new tag starts <name>-promote there with target preprod;
+#   - a new release starts <name>-promote with target prod (the release's tag);
+#   - the first push of a new repo adds its release webhook (task below, with the token of
+#     the bot rhdh-ci-hooks: Maintainer of {{ .Values.group }}, Secret gitlab-hooks-token).
 # The software templates define these pipelines (web-service: deploy/; the gitops
 # templates: helm/build in the -gitops repo). Events for repos without them fail harmlessly.
 apiVersion: v1
@@ -30,7 +33,7 @@ kind: ClusterRole
 metadata:
   name: rhdh-demo-start-pipelineruns
 rules:
-  - {apiGroups: [tekton.dev], resources: [pipelineruns], verbs: [create]}
+  - {apiGroups: [tekton.dev], resources: [pipelineruns, taskruns], verbs: [create]}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -88,7 +91,93 @@ spec:
   params:
     - {name: repo, value: $(body.project.name)}
     - {name: tag, value: $(extensions.tag)}
-    - {name: target, value: $(extensions.target)}
+    - {name: target, value: preprod}
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: gitlab-release
+spec:
+  params:
+    - {name: repo, value: $(body.project.name)}
+    - {name: tag, value: $(body.tag)}
+    - {name: target, value: prod}
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: gitlab-new-repo
+spec:
+  params:
+    - {name: project-id, value: $(body.project.id)}
+    - {name: project, value: $(body.project.path_with_namespace)}
+---
+# Release webhook for a new repo (its first push to main).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitlab-hooks
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: release-webhook
+spec:
+  params:
+    - {name: project-id}
+    - {name: project}
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: TaskRun
+      metadata:
+        generateName: release-webhook-
+        namespace: {{ .Release.Namespace }}
+      spec:
+        serviceAccountName: gitlab-hooks
+        params:
+          - {name: project-id, value: $(tt.params.project-id)}
+          - {name: project, value: $(tt.params.project)}
+        taskSpec:
+          params:
+            - {name: project-id}
+            - {name: project}
+          steps:
+            - name: add-webhook
+              image: {{ .Values.cliImage }}
+              env:
+                - name: TOKEN
+                  valueFrom: {secretKeyRef: {name: gitlab-hooks-token, key: token}}
+                - {name: API, value: "https://gitlab.{{ .Values.appsDomain }}/api/v4/projects/$(params.project-id)/hooks"}
+                - {name: HOOK, value: "http://el-gitlab-push.{{ .Release.Namespace }}.svc.cluster.local:8080"}
+              script: |
+                #!/bin/bash
+                set -euo pipefail
+                if curl -sf -H "PRIVATE-TOKEN: $TOKEN" "$API" | grep -q "\"url\":\"$HOOK\""; then
+                  echo "$(params.project): release webhook exists"; exit 0
+                fi
+                curl -sf -o /dev/null -X POST -H "PRIVATE-TOKEN: $TOKEN" "$API" \
+                  --data-urlencode "url=$HOOK" -d release_events=true -d push_events=false \
+                  -d tag_push_events=false -d enable_ssl_verification=false
+                echo "$(params.project): added the release webhook"
+              resources:
+                requests: {cpu: 10m, memory: 32Mi}
+                limits: {memory: 64Mi}
+---
+# The gitlab seed Job (namespace gitlab) stores the bot's token here.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-seed-hooks-token
+rules:
+  - {apiGroups: [""], resources: [secrets], verbs: [create]}
+  - {apiGroups: [""], resources: [secrets], resourceNames: [gitlab-hooks-token], verbs: [get, patch]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-seed-hooks-token
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: gitlab-seed-hooks-token}
+subjects: [{kind: ServiceAccount, name: gitlab-seed, namespace: gitlab}]
 ---
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerTemplate
@@ -152,7 +241,26 @@ spec:
               value:
                 - key: tag
                   expression: body.ref.split('/')[2]
-                - key: target
-                  expression: "body.ref.split('/')[2].startsWith('prod-') ? 'prod' : 'preprod'"
       bindings: [{ref: gitlab-tag}]
       template: {ref: service-promote}
+    - name: release-promote
+      interceptors:
+        - ref: {name: cel}
+          params:
+            - name: filter
+              value: >-
+                body.object_kind == 'release' && body.action == 'create' &&
+                body.project.path_with_namespace.startsWith('{{ .Values.group }}/')
+      bindings: [{ref: gitlab-release}]
+      template: {ref: service-promote}
+    - name: new-repo-webhook
+      interceptors:
+        - ref: {name: cel}
+          params:
+            - name: filter
+              value: >-
+                body.event_name == 'push' && body.ref == 'refs/heads/main' &&
+                body.project.path_with_namespace.startsWith('{{ .Values.group }}/') &&
+                body.before == '0000000000000000000000000000000000000000'
+      bindings: [{ref: gitlab-new-repo}]
+      template: {ref: release-webhook}
