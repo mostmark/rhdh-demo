@@ -46,6 +46,7 @@ spec:
           image: {{ .Values.quay.skopeoImage }}
           command: [/bin/bash, /script/quay-copy.sh]
           env:
+            - {name: HOME, value: /work}            # skopeo writes ~/.local; / is read-only
             - name: QUAY_TOKEN
               valueFrom: {secretKeyRef: {name: quay-admin, key: token}}
           volumeMounts:
