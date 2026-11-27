@@ -144,7 +144,9 @@ seed commits; after your first commit the repo is yours.
 - The platform Argo CD's application controller gets cluster-admin, because it
   installs operators and CRDs. Template-created apps go into the restricted
   `demo-apps` AppProject; Developer Hub's Argo CD account (`rhdh`) can only see and
-  manage applications in that project.
+  manage applications in that project. Every other signed-in user (the demo personas)
+  gets the default role `demo-viewer`: read-only access, including logs, to
+  `demo-apps` only; platform applications stay hidden.
 - The Keycloak Job reads the existing admin credentials (`keycloak-initial-admin`) to
   add clients and users to realm `sso`; it does not change the realm import.
 - The `demo-layer` Application runs in the `default` AppProject with the cluster-admin
