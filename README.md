@@ -20,9 +20,10 @@ else from this repository.
 | OpenShift Pipelines | Argo CD, Subscription | Tekton for templates and the Tekton tab |
 | GitLab | Argo CD, single `gitlab-ce` container + PVC | In-cluster Git server; sign-in through Keycloak |
 | Keycloak configuration | Argo CD hook Jobs | Uses the cluster's existing Keycloak and realm `sso`: clients (platform), teams and people (from the demo layer) |
-| Apps from templates | `demo-apps` AppProject + ApplicationSet `service-apps` in the platform Argo CD | Every repo in GitLab group `development` with a `deploy/` folder becomes an app in `demo-<repo>`; only GitLab sources, `demo-*` namespaces, Namespace as the only cluster-scoped kind |
+| Apps from templates | `demo-apps` AppProject + ApplicationSet `service-apps` in the platform Argo CD | Every repo in GitLab group `development` with a `deploy/` folder becomes an app in `demo-<repo>`, in the owning team's project `team-<team>` (GitLab topic set by the template) or else `demo-apps`; only GitLab sources, `demo-*` namespaces, Namespace as the only cluster-scoped kind |
 | CI for those apps | Argo CD, Tekton EventListener (`rhdh-demo-ci`) + GitLab system hook | Every push to `main` in `development` runs the repo's pipeline `<repo>-ci` |
-| Developer Hub 2.1 | Argo CD, RHDH operator (`fast-2.1`) + `Backstage` CR | Keycloak sign-in, users from Keycloak |
+| Developer Hub 2.1 | Argo CD, RHDH operator (`fast-2.1`) + `Backstage` CR | Keycloak sign-in, users from Keycloak, RBAC per team (*Administration → RBAC*) |
+| Team access | Demo-layer hook Job `team-access` | From the demo organisation: Developer Hub roles (platform team → `platform-admin`, other teams → `developer`), one OpenShift group and one Argo CD project per team (each team sees its own apps) |
 | Demo layer | Argo CD app reading a repo in the in-cluster GitLab | Branding, teams and people, catalog, workloads: changed per demo without touching this repo |
 
 | Orchestrator | Argo CD: Serverless (`stable-1.37`) + Serverless Logic (1.39.2) operators, Knative, the CR's `orchestrator` flavour | Sample workflow `greeting` (prebuilt image); Notifications + Signals |
@@ -60,7 +61,9 @@ root Application (Helm chart charts/root) → one Application per component, syn
          quay (Quay, PostgreSQL, Redis; Jobs: secrets, first user quayadmin)
  wave 2  demo-layer (Application → in-cluster GitLab repo demo/rhdh-demo-config,
          + components/demo-layer-hooks: Quay sync (Sync hook, before the workload apps:
-           organisation, public repos, image tags), org sync (PostSync: teams and
+           organisation, public repos, image tags), team access (Sync hook, before the
+           workload apps: Developer Hub RBAC policy, OpenShift groups, Argo CD projects
+           team-<team>), org sync (PostSync: teams and
            people → Keycloak) and GitLab access (PostSync: people → Developers in
            `development`))
  wave 3  developer-hub (ConfigMaps, Backstage CR, Kubernetes reader)
@@ -77,7 +80,7 @@ components/
   operators/                      # Subscriptions/OperatorGroups (Pipelines, RHDH)
   gitlab/                         # GitLab Deployment, PVCs, Route, seed Job; files/demo-layer-seed = initial demo layer
   keycloak-config/                # Job: clients in realm sso
-  demo-layer-hooks/               # Jobs run on every demo-layer sync: Keycloak org sync, GitLab access, Quay sync
+  demo-layer-hooks/               # Jobs run on every demo-layer sync: team access (RBAC, groups, Argo CD projects), Keycloak org sync, GitLab access, Quay sync
   gitops-config/                  # demo-apps AppProject, ApplicationSet service-apps, Argo CD token Job
   ci-triggers/                    # Tekton EventListener for GitLab push events
   developer-hub/                  # Backstage CR, base app-config, dynamic plugins, Kubernetes reader
@@ -114,6 +117,12 @@ parameters of the root Application.
   `app-config-base.yaml`, `app-config-demo.yaml`); a duplicate key silently replaces the
   other file. It doesn't retry when a referenced ConfigMap appears later, which is why
   the demo layer syncs in an earlier wave.
+- RBAC: `permission.enabled` with the RBAC backend's CSV and conditional policy files
+  from ConfigMap `rbac-policies` (written by the team-access hook), mounted as a
+  directory, so `policyFileReload` applies changes without a restart. The RBAC page is
+  `ref://backstage-community-plugin-rbac`. Roles need `homepage.default-widgets.read`,
+  or the Home page shows no default widgets. Roles created on the RBAC page are stored
+  in the database and survive restarts.
 - The plugins' default configs read environment variables and use fixed provider ids
   (`gitlab.default`, `keycloakOrg.default`); the app-config uses the same ids.
 
@@ -143,6 +152,19 @@ Tekton pipeline (git-clone, buildah into the cluster registry, rollout) and mani
 `deploy/`; the ApplicationSet deploys it, a sync hook runs the first build, and pushes
 trigger later builds.
 
+**Team access** (`team-access` hook, every sync): the platform team (`"platform": true`
+in `keycloak-org.yaml`, else the team named `platform-team`) gets the Developer Hub role
+`platform-admin` (everything, including the RBAC page) and sees all demo apps in Argo
+CD (OpenShift group `rhdh-demo-platform-admins`). Every other team gets `developer`: it
+reads the whole catalog except templates tagged `platform-only`, runs templates and
+workflows, and refreshes or unregisters only what it owns; in Argo CD it sees the apps
+in its project `team-<team>` (read-only, with logs). The roles are platform defaults
+(`components/demo-layer-hooks/files/rbac-roles.csv`, `conditional-policies.yaml`); a
+demo replaces them with a ConfigMap `rbac-roles` in namespace `rhdh` (same keys, sync
+wave `-2`), and if its CSV has `g` lines no bindings are generated. `keycloak-org.yaml`
+must be in sync wave `-2`, so the hook sees a new organisation before the workload apps
+need its projects.
+
 The seed Job writes a small sample demo and keeps it current while the repo holds only
 seed commits; after your first commit the repo is yours.
 
@@ -151,9 +173,14 @@ seed commits; after your first commit the repo is yours.
 - The platform Argo CD's application controller gets cluster-admin, because it
   installs operators and CRDs. Template-created apps go into the restricted
   `demo-apps` AppProject; Developer Hub's Argo CD account (`rhdh`) can only see and
-  manage applications in that project. Every other signed-in user (the demo personas)
-  gets the default role `demo-viewer`: read-only access, including logs, to
-  `demo-apps` only; platform applications stay hidden.
+  manage applications in that project and the team projects `team-*`. Signed-in users
+  get no default role: the platform team (OpenShift group `rhdh-demo-platform-admins`)
+  has read-only access, including logs, to all demo projects, every other team to its
+  own `team-<team>` project; platform applications stay hidden.
+- The team-access Job may create, change and delete OpenShift Groups cluster-wide
+  (the names are dynamic, so RBAC can't narrow it down). It only touches groups with the
+  label `rhdh-demo/team-access=true` and never takes over an existing group of the same
+  name.
 - The Keycloak Job reads the existing admin credentials (`keycloak-initial-admin`) to
   add clients and users to realm `sso`; it does not change the realm import.
 - The `demo-layer` Application runs in the `default` AppProject with the cluster-admin
