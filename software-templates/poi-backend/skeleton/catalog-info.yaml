@@ -1,0 +1,60 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.component_id }}
+  {%- if values.description %}
+  description: ${{ values.description | dump }}
+  {%- endif %}
+  annotations:
+    argocd/app-selector: rhdh-demo/component=${{ values.component_id }}
+    backstage.io/kubernetes-id: ${{ values.component_id }}
+    tekton.dev/cicd: "true"
+    gitlab.com/project-slug: development/${{ values.repoName }}
+    {%- if values.registry == 'quay' %}
+    quay.io/repository-slug: development/${{ values.repoName }}
+    {%- endif %}
+  tags: [java, quarkus, maven, workshop]
+  links:
+    - url: https://${{ values.component_id }}.__APPS_DOMAIN__/
+      title: Application
+      icon: web
+    - url: https://gitlab.__APPS_DOMAIN__/development/${{ values.repoName }}-gitops
+      title: GitOps repository
+      icon: github
+    - url: https://devspaces.__APPS_DOMAIN__/#https://gitlab.__APPS_DOMAIN__/development/${{ values.repoName }}?devfilePath=.devfile-vscode.yaml
+      title: OpenShift Dev Spaces (VS Code)
+      icon: code
+spec:
+  type: service
+  lifecycle: production
+  owner: ${{ values.owner | dump }}
+  system: workshop-system-${{ values.space }}
+  providesApis:
+    - backend-api-${{ values.space }}
+---
+# The attendee's workshop system (defined here once; the gateway and map belong to it too)
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: workshop-system-${{ values.space }}
+  description: Points-of-interest workshop of space ${{ values.space }}
+  tags: [backstage, openshift, workshop]
+spec:
+  owner: ${{ values.owner | dump }}
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: backend-api-${{ values.space }}
+  description: API surface used by workshop attendees to initialize and load parks data
+  links:
+    - url: https://${{ values.component_id }}.__APPS_DOMAIN__/q/swagger-ui
+      title: Swagger UI
+      icon: web
+spec:
+  type: openapi
+  lifecycle: production
+  owner: ${{ values.owner | dump }}
+  system: workshop-system-${{ values.space }}
+  definition:
+    $text: ./src/main/resources/META-INF/openapi.yaml

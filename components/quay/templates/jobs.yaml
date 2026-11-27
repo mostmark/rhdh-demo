@@ -12,7 +12,8 @@ metadata:
 rules:
   - {apiGroups: [""], resources: [secrets], verbs: [create]}
   - {apiGroups: [""], resources: [secrets], resourceNames: [quay-db, quay-config, quay-admin], verbs: [get]}
-  - {apiGroups: [""], resources: [secrets], resourceNames: [quay-config, quay-admin], verbs: [patch]}
+  - {apiGroups: [""], resources: [secrets], resourceNames: [quay-config, quay-admin, quay-ci-push], verbs: [patch]}
+  - {apiGroups: [""], resources: [secrets], resourceNames: [quay-ci-push], verbs: [get]}
   - {apiGroups: [apps], resources: [deployments], resourceNames: [quay], verbs: [get, patch]}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -32,6 +33,7 @@ data:
   make-secrets.sh: {{ .Files.Get "files/make-secrets.sh" | quote }}
   init-admin.sh: {{ .Files.Get "files/init-admin.sh" | quote }}
   mint-token.py: {{ .Files.Get "files/mint-token.py" | quote }}
+  ci-robot.py: {{ .Files.Get "files/ci-robot.py" | quote }}
 ---
 apiVersion: batch/v1
 kind: Job
@@ -83,6 +85,25 @@ spec:
             - {name: ORG, value: {{ .Values.automation.org | quote }}}
             - {name: APP, value: {{ .Values.automation.app | quote }}}
             - {name: SCOPES, value: {{ .Values.automation.scopes | quote }}}
+            - {name: CI_ORG, value: {{ .Values.ci.org | quote }}}
           volumeMounts: [{name: scripts, mountPath: /scripts}]
           resources: {requests: {cpu: 10m, memory: 32Mi}, limits: {memory: 128Mi}}
       volumes: [{name: scripts, configMap: {name: quay-setup-scripts}}]
+---
+# Software-template pipelines (namespaces demo-*, service account pipeline) read the CI
+# robot's credentials to push to Quay. Kubernetes RBAC can't name "every pipeline account",
+# so every service account may read this one Secret: it can only push to organization
+# {{ .Values.ci.org }}.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: quay-ci-push-readers
+rules:
+  - {apiGroups: [""], resources: [secrets], resourceNames: [quay-ci-push], verbs: [get]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: quay-ci-push-readers
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: quay-ci-push-readers}
+subjects: [{apiGroup: rbac.authorization.k8s.io, kind: Group, name: "system:serviceaccounts"}]

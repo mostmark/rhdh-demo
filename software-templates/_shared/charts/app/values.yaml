@@ -1,0 +1,20 @@
+# Defaults for every environment. Argo CD adds environments/<env>.yaml (the ApplicationSet
+# gitops-envs uses it as the values file): environment, image.tag, host, env, ...
+component: ${{ values.component }}
+partOf: ${{ values.partOf }}
+runtime: ${{ values.runtime }}
+gitUrl: ${{ values.gitUrl }}
+environment: dev
+image:
+  repository: ${{ values.imageRepository }}
+  tag: latest
+host: ""
+port: ${{ values.port }}
+# the pipelines run in this namespace and restart the Deployment after a new image
+buildNamespace: ${{ values.buildNamespace }}
+env: []
+connectsTo: ""
+watchServices: false
+resources:
+  requests: {cpu: 20m, memory: 128Mi}
+  limits: {memory: ${{ values.memoryLimit }}}

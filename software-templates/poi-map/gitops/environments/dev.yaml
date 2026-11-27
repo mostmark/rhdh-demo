@@ -1,0 +1,16 @@
+name: ${{ values.component }}-dev
+namespace: demo-${{ values.space }}
+chart: helm/app
+component: ${{ values.component }}
+environment: dev
+image:
+  tag: latest
+host: ${{ values.component }}.__APPS_DOMAIN__
+connectsTo: '[{"apiVersion":"apps/v1","kind":"Deployment","name":"${{ values.space }}-poi-gateway"}]'
+env:
+  - {name: GATEWAY_API_URL, value: "https://${{ values.space }}-poi-gateway.__APPS_DOMAIN__"}
+  - {name: WEBSOCKET_ENDPOINT, value: "wss://${{ values.space }}-poi-gateway.__APPS_DOMAIN__/ws-server-endpoint"}
+  - {name: MAP_TITLE, value: "POI Map (Developer Hub workshop)"}
+  # OpenStreetMap tiles instead of Mapbox (which needs an access token)
+  - {name: MAP_URL, value: "https://tile.openstreetmap.org/{z}/{x}/{y}.png"}
+  - {name: MAP_ATTRIBUTION, value: "Map data &copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors"}

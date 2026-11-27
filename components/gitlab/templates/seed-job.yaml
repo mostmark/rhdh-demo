@@ -54,6 +54,16 @@ data:
   {{ trimPrefix "files/demo-layer-seed/" $path | replace "/" "__" }}: {{ $.Files.Get $path | quote }}
 {{- end }}
 ---
+# The platform commit the seed copies the software templates from. A new commit changes
+# this ConfigMap, so Argo CD syncs and the seed Job (PostSync) runs again.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gitlab-seed-source
+data:
+  repo: {{ .Values.platformRepo | quote }}
+  revision: {{ .Values.platformRevision | quote }}
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -79,6 +89,11 @@ spec:
             - {name: DEV_GROUP, value: {{ .Values.seed.devGroup | quote }}}
             - {name: SYSTEM_HOOK_URL, value: {{ .Values.seed.systemHookUrl | quote }}}
             - {name: DEVSPACES_URL, value: {{ if (.Values.components | default dict).devSpaces }}"https://devspaces.{{ .Values.appsDomain }}"{{ else }}""{{ end }}}
+            - {name: PLATFORM_REPO, value: {{ .Values.platformRepo | quote }}}
+            - {name: PLATFORM_REVISION, value: {{ .Values.platformRevision | quote }}}
+            - {name: TEMPLATES_GROUP, value: {{ .Values.templates.group | quote }}}
+            - {name: TEMPLATES_REPO, value: {{ .Values.templates.repo | quote }}}
+            - {name: TEMPLATES_PATH, value: {{ .Values.templates.path | quote }}}
           volumeMounts:
             - {name: scripts, mountPath: /seed}
             - {name: files, mountPath: /seed-files}

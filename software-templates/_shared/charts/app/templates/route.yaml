@@ -1,0 +1,13 @@
+{{- if .Values.host }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ .Values.component }}
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+spec:
+  host: {{ .Values.host }}
+  to: {kind: Service, name: {{ .Values.component }}}
+  port: {targetPort: http}
+  tls: {termination: edge, insecureEdgeTerminationPolicy: Redirect}
+{{- end }}

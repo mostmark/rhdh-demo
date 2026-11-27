@@ -1,0 +1,5 @@
+apiVersion: v2
+name: build
+description: Tekton pipelines (build on push, promote on tag) of one service (rhdh-demo software templates)
+type: application
+version: 0.1.0

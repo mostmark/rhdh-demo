@@ -1,0 +1,5 @@
+apiVersion: v2
+name: app
+description: Deployment, Service and Route of one environment (rhdh-demo software templates)
+type: application
+version: 0.1.0

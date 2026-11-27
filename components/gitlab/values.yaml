@@ -17,3 +17,12 @@ seed:
   # Push events of all projects go here (components/ci-triggers EventListener); empty = no hook
   systemHookUrl: http://el-gitlab-push.rhdh-demo-ci.svc.cluster.local:8080
 components: {}                      # set by the root Application (feature toggles)
+platformRepo: ""                    # set by the root Application: this repository
+platformRevision: ""                # set by the root Application: the commit Argo CD synced
+# Software templates every demo gets: the folder software-templates/ of this repository,
+# copied into a GitLab repo at the synced commit (kept current while it has only seed
+# commits) and registered in Developer Hub's base app-config.
+templates:
+  group: platform
+  repo: software-templates
+  path: software-templates

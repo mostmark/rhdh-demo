@@ -1,0 +1,8 @@
+name: ${{ values.component }}-preprod
+namespace: demo-${{ values.component }}-preprod
+chart: helm/app
+component: ${{ values.component }}
+environment: preprod
+image:
+  tag: preprod
+host: ${{ values.component }}-preprod.__APPS_DOMAIN__

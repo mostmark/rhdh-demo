@@ -1,0 +1,65 @@
+# One Application per file environments/<env>.yaml in every repo of GitLab group
+# {{ .Values.serviceApps.group }} that has such a folder (the -gitops repos of the platform
+# software templates, e.g. "Quarkus Service with ArgoCD and a Tekton Pipeline"). Each file
+# names the Application, its namespace (must match demo-*), its Helm chart in the repo and
+# the component label, and is also the chart's values file:
+#   name: my-app-dev        namespace: demo-my-app-dev    chart: helm/app
+#   component: my-app       environment: dev              image: {tag: latest}
+# Project: team-<team> from the repo's GitLab topic team-<team>, else demo-apps.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: gitops-envs
+  namespace: openshift-gitops
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - matrix:
+        generators:
+          - scmProvider:
+              cloneProtocol: https
+              requeueAfterSeconds: 60
+              gitlab:
+                api: https://gitlab.{{ .Values.appsDomain }}/
+                group: {{ .Values.serviceApps.group | quote }}
+                includeSubgroups: false
+              filters:
+                - pathsExist: [environments]
+                  branchMatch: ^main$
+          - git:
+              repoURL: {{ `'{{ .url }}'` }}
+              revision: main
+              requeueAfterSeconds: 60
+              files:
+                - path: environments/*.yaml
+  template:
+    metadata:
+      name: {{ `'{{ .name }}'` }}
+      labels:
+        backstage.io/kubernetes-id: {{ `'{{ .component }}'` }}
+        rhdh-demo/component: {{ `'{{ .component }}'` }}
+        rhdh-demo/source: gitops-envs
+      finalizers: [resources-finalizer.argocd.argoproj.io]
+    spec:
+      # .labels: the repo's GitLab topics, comma-separated
+      project: {{ `'{{ $p := "demo-apps" }}{{ range splitList "," .labels }}{{ if hasPrefix "team-" . }}{{ $p = . }}{{ end }}{{ end }}{{ $p }}'` }}
+      source:
+        repoURL: {{ `'{{ .url }}'` }}
+        targetRevision: main
+        path: {{ `'{{ .chart }}'` }}
+        helm:
+          # charts live at helm/<chart>; the environment file is their values file
+          valueFiles: [{{ `'../../{{ .path.path }}/{{ .path.filename }}'` }}]
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: {{ `'{{ .namespace }}'` }}
+      syncPolicy:
+        automated: {prune: true, selfHeal: true}
+        syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true]
+        retry: {limit: 10, backoff: {duration: 30s, factor: 2, maxDuration: 5m}}
+      # pipelines restart Deployments to roll out new images
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers: [/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt]

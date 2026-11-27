@@ -1,0 +1,65 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.component_id | dump }}
+  {%- if values.description %}
+  description: ${{ values.description | dump }}
+  {%- endif %}
+  annotations:
+    # all four Argo CD applications (build, dev, preprod, prod)
+    argocd/app-selector: rhdh-demo/component=${{ values.component_id }}
+    backstage.io/kubernetes-id: ${{ values.component_id }}
+    tekton.dev/cicd: "true"
+    backstage.io/techdocs-ref: dir:.
+    gitlab.com/project-slug: development/${{ values.component_id }}
+    {%- if values.registry == 'quay' %}
+    quay.io/repository-slug: development/${{ values.component_id }}
+    {%- endif %}
+  tags:
+    - java
+    - quarkus
+  links:
+    - url: https://${{ values.component_id }}-dev.__APPS_DOMAIN__/hello
+      title: dev
+      icon: web
+    - url: https://${{ values.component_id }}-preprod.__APPS_DOMAIN__/hello
+      title: preprod
+      icon: web
+    - url: https://${{ values.component_id }}-prod.__APPS_DOMAIN__/hello
+      title: prod
+      icon: web
+    - url: https://gitlab.__APPS_DOMAIN__/development/${{ values.component_id }}-gitops
+      title: GitOps repository
+      icon: github
+    - url: https://openshift-gitops-server-openshift-gitops.__APPS_DOMAIN__/applications?labels=rhdh-demo%2Fcomponent%3D${{ values.component_id }}
+      title: Argo CD
+      icon: dashboard
+    - url: https://devspaces.__APPS_DOMAIN__/#https://gitlab.__APPS_DOMAIN__/development/${{ values.component_id }}
+      title: OpenShift Dev Spaces (VS Code)
+      icon: code
+spec:
+  type: service
+  lifecycle: production
+  owner: ${{ values.owner | dump }}
+  {%- if values.system %}
+  system: ${{ values.system | dump }}
+  {%- endif %}
+  providesApis:
+    - ${{ values.component_id | dump }}
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.component_id | dump }}
+  {%- if values.description %}
+  description: ${{ values.description | dump }}
+  {%- endif %}
+spec:
+  type: openapi
+  lifecycle: production
+  owner: ${{ values.owner | dump }}
+  {%- if values.system %}
+  system: ${{ values.system | dump }}
+  {%- endif %}
+  definition:
+    $text: ./openapi.yaml

@@ -1,7 +1,10 @@
-# GitLab sends push events for all projects to this EventListener (system hook, set up by
-# the gitlab seed Job). For a push to main of development/<name> it starts the Pipeline
-# <name>-ci in namespace demo-<name>, which the repo's deploy/ folder defines (software
-# template "New service"). Pushes to repos without such a pipeline fail harmlessly.
+# GitLab sends push and tag events for all projects to this EventListener (system hook,
+# set up by the gitlab seed Job). For development/<name>:
+#   - a push to main starts the Pipeline <name>-ci in namespace demo-<name>;
+#   - a new tag starts <name>-promote there, with target 'prod' for tags prod-*, else
+#     'preprod' (GitLab CE system hooks don't send release events).
+# The software templates define these pipelines (web-service: deploy/; the gitops
+# templates: helm/build in the -gitops repo). Events for repos without them fail harmlessly.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -78,6 +81,47 @@ spec:
                 resources: {requests: {storage: 1Gi}}
 ---
 apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: gitlab-tag
+spec:
+  params:
+    - {name: repo, value: $(body.project.name)}
+    - {name: tag, value: $(extensions.tag)}
+    - {name: target, value: $(extensions.target)}
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: service-promote
+spec:
+  params:
+    - {name: repo}
+    - {name: tag}
+    - {name: target}
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: $(tt.params.repo)-promote-
+        namespace: {{ .Values.namespacePrefix }}$(tt.params.repo)
+        labels:
+          backstage.io/kubernetes-id: $(tt.params.repo)
+          tekton.dev/pipeline: $(tt.params.repo)-promote
+      spec:
+        pipelineRef: {name: $(tt.params.repo)-promote}
+        params:
+          - {name: tag, value: $(tt.params.tag)}
+          - {name: target, value: $(tt.params.target)}
+        taskRunTemplate: {serviceAccountName: pipeline}
+        workspaces:
+          - name: source
+            volumeClaimTemplate:
+              spec:
+                accessModes: [ReadWriteOnce]
+                resources: {requests: {storage: 64Mi}}
+---
+apiVersion: triggers.tekton.dev/v1beta1
 kind: EventListener
 metadata:
   name: gitlab-push
@@ -95,3 +139,20 @@ spec:
                 body.after != '0000000000000000000000000000000000000000'
       bindings: [{ref: gitlab-push}]
       template: {ref: service-ci}
+    - name: tag-promote
+      interceptors:
+        - ref: {name: cel}
+          params:
+            - name: filter
+              value: >-
+                body.event_name == 'tag_push' &&
+                body.project.path_with_namespace.startsWith('{{ .Values.group }}/') &&
+                body.after != '0000000000000000000000000000000000000000'
+            - name: overlays
+              value:
+                - key: tag
+                  expression: body.ref.split('/')[2]
+                - key: target
+                  expression: "body.ref.split('/')[2].startsWith('prod-') ? 'prod' : 'preprod'"
+      bindings: [{ref: gitlab-tag}]
+      template: {ref: service-promote}

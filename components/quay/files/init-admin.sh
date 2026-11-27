@@ -37,3 +37,17 @@ else
   echo "stored a new token in quay-admin"
 fi
 echo "admin ready"
+
+# CI robot for software-template pipelines: Secret quay-ci-push (docker config for the Quay
+# host). Pipelines in any namespace may read it (RoleBinding quay-ci-push-readers).
+QUAY_TOKEN="$token" QUAY_API=$api QUAY_HOST="quay.${APPS_DOMAIN}" OUT=/tmp/ci-auth.json \
+  python3 /scripts/ci-robot.py
+if oc get secret quay-ci-push -n $ns >/dev/null 2>&1; then
+  oc patch secret quay-ci-push -n $ns --type merge \
+    -p "{\"data\":{\".dockerconfigjson\":\"$(base64 -w0 < /tmp/ci-auth.json)\"}}" >/dev/null
+else
+  oc create secret generic quay-ci-push -n $ns --type=kubernetes.io/dockerconfigjson \
+    --from-file=.dockerconfigjson=/tmp/ci-auth.json >/dev/null
+fi
+rm -f /tmp/ci-auth.json
+echo "CI robot credentials in quay-ci-push"

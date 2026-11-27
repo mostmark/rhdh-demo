@@ -1,0 +1,10 @@
+# Argo CD (ApplicationSet gitops-envs) makes one Application per file in this folder; each
+# file is also the values file of its chart (helm/build or helm/app).
+name: ${{ values.component }}-build
+namespace: ${{ values.buildNamespace }}
+chart: helm/build
+component: ${{ values.component }}
+# the workshop space: every push to main builds and deploys there
+environments:
+  - {name: dev, namespace: demo-${{ values.space }}}
+promote: false

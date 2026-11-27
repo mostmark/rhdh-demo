@@ -20,3 +20,7 @@ automation:
   org: platform
   app: rhdh-demo-automation
   scopes: repo:read repo:write repo:admin repo:create user:read user:admin org:admin
+# Organization for images built by software-template pipelines (robot <org>+ci, Secret
+# quay-ci-push); repositories are created on push and are public.
+ci:
+  org: development

@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.component }}
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+  annotations:
+    app.openshift.io/vcs-uri: {{ .Values.gitUrl }}
+    {{- with .Values.connectsTo }}
+    app.openshift.io/connects-to: {{ . | quote }}
+    {{- end }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: {{ .Values.component }}}
+  template:
+    metadata:
+      labels:
+        {{- include "app.labels" . | nindent 8 }}
+    spec:
+      {{- if .Values.watchServices }}
+      serviceAccountName: {{ .Values.component }}
+      {{- end }}
+      containers:
+        - name: app
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: Always
+          ports:
+            - {containerPort: {{ .Values.port }}, name: http}
+          {{- with .Values.env }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          readinessProbe:
+            tcpSocket: {port: {{ .Values.port }}}
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

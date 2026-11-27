@@ -17,6 +17,18 @@ if [ -n "${DEVSPACES_URL:-}" ] && oc get secret devspaces-gitlab-oauth -n opensh
   ds_exists=true
 fi
 
+# The platform software templates: fetch the synced platform commit inside the GitLab pod
+# (it has git and reaches the internet); seed.rb copies TEMPLATES_PATH from there.
+templates_src=""
+if [ -n "${PLATFORM_REPO:-}" ] && [ -n "${PLATFORM_REVISION:-}" ]; then
+  if oc exec -n gitlab deploy/gitlab -- bash -c "rm -rf /tmp/rhdh-demo-platform && git init -q /tmp/rhdh-demo-platform && cd /tmp/rhdh-demo-platform && git fetch -q --depth 1 '${PLATFORM_REPO}' '${PLATFORM_REVISION}' && git checkout -q FETCH_HEAD && test -d '${TEMPLATES_PATH}'"; then
+    templates_src="/tmp/rhdh-demo-platform/${TEMPLATES_PATH}"
+    echo "fetched ${PLATFORM_REVISION} of the platform repo for the software templates"
+  else
+    echo "WARNING: could not fetch ${PLATFORM_REPO} @ ${PLATFORM_REVISION}; software templates not updated"
+  fi
+fi
+
 current="$(oc get secret rhdh-integrations -n rhdh -o jsonpath='{.data.GITLAB_TOKEN}' | base64 -d)"
 [ "$current" = pending ] && current=""
 
@@ -30,6 +42,10 @@ out="$({
   echo "DEVSPACES_URL = '${DEVSPACES_URL:-}'"
   echo "DEVSPACES_SECRET_EXISTS = ${ds_exists}"
   echo "CURRENT_TOKEN = Base64.decode64('$(printf %s "$current" | base64 -w0)')"
+  echo "TEMPLATES_SRC = '${templates_src}'"
+  echo "TEMPLATES_GROUP = '${TEMPLATES_GROUP:-platform}'"
+  echo "TEMPLATES_REPO = '${TEMPLATES_REPO:-software-templates}'"
+  echo "TEMPLATES_REVISION = '${PLATFORM_REVISION:-}'"
   echo "FILES = {}"
   for f in /seed-files/*; do
     key="$(basename "$f")"

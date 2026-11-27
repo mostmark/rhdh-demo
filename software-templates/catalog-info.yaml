@@ -1,0 +1,15 @@
+# The platform's software templates, available in every demo. The gitlab component seeds
+# this folder into GitLab repo platform/software-templates; Developer Hub discovers this
+# file there (catalog provider gitlabPlatformTemplates).
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  name: platform-software-templates
+  description: Software templates of the rhdh-demo platform
+spec:
+  type: url
+  targets:
+    - ./quarkus-service/template.yaml
+    - ./poi-backend/template.yaml
+    - ./poi-gateway/template.yaml
+    - ./poi-map/template.yaml

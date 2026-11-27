@@ -1,0 +1,153 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: poi-backend-template
+  title: Quarkus POI Backend (workshop)
+  description: >-
+    Creates the Quarkus points-of-interest backend (national parks) for the workshop: application and GitOps repositories, a Tekton pipeline and a deployment into the workshop space.
+  tags: [java, quarkus, maven, workshop]
+  annotations:
+    # ported from the Red Hat Summit 2023 Backstage workshop (redhat-scholars/backstage-workshop)
+    backstage.io/source-location: url:https://gitlab.__APPS_DOMAIN__/platform/software-templates/-/tree/main/poi-backend
+spec:
+  owner: group:default/platform-team
+  type: service
+
+  parameters:
+    - title: Provide information about the new component
+      required: [space, owner]
+      properties:
+        space:
+          title: Workshop space
+          type: string
+          description: >-
+            Your workshop space: the backend, gateway and map of one attendee share it
+            (namespace demo-<space>). Lowercase letters, digits and dashes. Create it first: the gateway reads the parks from it.
+          pattern: '^[a-z][a-z0-9-]{1,12}[a-z0-9]$'
+          ui:autofocus: true
+        owner:
+          title: Owner
+          type: string
+          description: The team that owns the component (its Argo CD project shows the apps)
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: Group
+        description:
+          title: Description
+          type: string
+          description: Help others understand what this component is for
+          default: Creates the quarkus poi backend app for the workshop
+    - title: Provide Build Information
+      required: [image_registry]
+      properties:
+        image_registry:
+          title: Image Registry
+          type: string
+          default: Openshift
+          enum: [Openshift, Quay]
+          enumNames: [OpenShift internal registry, Quay (organization development)]
+
+  steps:
+    - id: templateSource
+      name: Generating the source code component
+      action: fetch:template
+      input:
+        url: ./skeleton
+        targetPath: ./app
+        copyWithoutTemplating:
+          - src/main/resources/data/*
+          - src/main/resources/META-INF/resources/*
+          - package-lock.json
+        values:
+          component_id: ${{ parameters.space }}-poi-backend
+          space: ${{ parameters.space }}
+          repoName: ${{ parameters.space }}-poi-backend
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          registry: ${{ 'quay' if parameters.image_registry == 'Quay' else 'openshift' }}
+    - id: publishSource
+      name: Publishing to the Source Code Repository
+      action: publish:gitlab
+      input:
+        repoUrl: gitlab.__APPS_DOMAIN__?owner=development&repo=${{ parameters.space }}-poi-backend
+        sourcePath: ./app
+        repoVisibility: public
+        defaultBranch: main
+        topics:
+          - team-${{ parameters.owner | parseEntityRef | pick('name') }}
+          - workshop
+    - id: registerSource
+      name: Registering the Catalog Info Component
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publishSource.output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+    - id: templateGitopsCharts
+      name: Generating the deployment resources
+      action: fetch:template
+      input:
+        url: ../_shared/charts
+        targetPath: ./gitops/helm
+        values:
+          component: ${{ parameters.space }}-poi-backend
+          repo: ${{ parameters.space }}-poi-backend
+          space: ${{ parameters.space }}
+          partOf: workshop-system-${{ parameters.space }}
+          runtime: quarkus
+          port: 8080
+          memoryLimit: 512Mi
+          containerfile: ./Dockerfile
+          gitUrl: https://gitlab.__APPS_DOMAIN__/development/${{ parameters.space }}-poi-backend.git
+          buildNamespace: demo-${{ parameters.space }}-poi-backend
+          registry: ${{ 'quay' if parameters.image_registry == 'Quay' else 'openshift' }}
+          imageRepository: ${{ ('quay.__APPS_DOMAIN__/development/' + parameters.space + '-poi-backend') if parameters.image_registry == 'Quay' else ('image-registry.openshift-image-registry.svc:5000/demo-' + parameters.space + '-poi-backend/poi-backend') }}
+          imageStream: poi-backend
+    - id: templateGitops
+      name: Generating the environments
+      action: fetch:template
+      input:
+        url: ./gitops
+        targetPath: ./gitops
+        values:
+          component: ${{ parameters.space }}-poi-backend
+          repo: ${{ parameters.space }}-poi-backend
+          space: ${{ parameters.space }}
+          partOf: workshop-system-${{ parameters.space }}
+          runtime: quarkus
+          port: 8080
+          memoryLimit: 512Mi
+          containerfile: ./Dockerfile
+          gitUrl: https://gitlab.__APPS_DOMAIN__/development/${{ parameters.space }}-poi-backend.git
+          buildNamespace: demo-${{ parameters.space }}-poi-backend
+          registry: ${{ 'quay' if parameters.image_registry == 'Quay' else 'openshift' }}
+          imageRepository: ${{ ('quay.__APPS_DOMAIN__/development/' + parameters.space + '-poi-backend') if parameters.image_registry == 'Quay' else ('image-registry.openshift-image-registry.svc:5000/demo-' + parameters.space + '-poi-backend/poi-backend') }}
+          imageStream: poi-backend
+    - id: publishGitops
+      name: Publishing to Deployment Resource Repository
+      action: publish:gitlab
+      input:
+        repoUrl: gitlab.__APPS_DOMAIN__?owner=development&repo=${{ parameters.space }}-poi-backend-gitops
+        sourcePath: ./gitops
+        repoVisibility: public
+        defaultBranch: main
+        topics:
+          - team-${{ parameters.owner | parseEntityRef | pick('name') }}
+          - gitops
+
+  output:
+    links:
+      - title: Source Code Repository
+        url: ${{ steps.publishSource.output.remoteUrl }}
+      - title: Open Component in catalog
+        icon: catalog
+        entityRef: ${{ steps.registerSource.output.entityRef }}
+      - title: Application
+        url: https://${{ parameters.space }}-poi-backend.__APPS_DOMAIN__/
+    text:
+      - title: What happens next
+        content: |
+          Argo CD creates **${{ parameters.space }}-poi-backend-build** (Tekton pipeline in namespace
+          demo-${{ parameters.space }}-poi-backend) and **${{ parameters.space }}-poi-backend-dev** (the
+          application in namespace demo-${{ parameters.space }}) within a minute. The first build
+          takes a few minutes; every push to `main` builds and deploys again.

@@ -1,0 +1,17 @@
+# Argo CD adds environments/build.yaml (the ApplicationSet gitops-envs uses it as the values
+# file): the environments the pipelines deploy to, and whether tags promote.
+component: ${{ values.component }}
+# GitLab pushes start <repo>-ci, tags <repo>-promote (EventListener in rhdh-demo-ci)
+repo: ${{ values.repo }}
+gitUrl: ${{ values.gitUrl }}
+# openshift: the cluster registry (ImageStream in this namespace); quay: the demo Quay,
+# organization development (robot credentials from Secret quay/quay-ci-push)
+registry: ${{ values.registry }}
+image:
+  repository: ${{ values.imageRepository }}
+  stream: ${{ values.imageStream }}
+containerfile: ${{ values.containerfile }}
+deployment: ${{ values.component }}
+# name, namespace, from: the image tag an environment starts from (empty: every build)
+environments: []
+promote: false

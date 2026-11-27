@@ -1,0 +1,45 @@
+{{- if .Values.promote }}
+# Promotion on a Git tag (EventListener in rhdh-demo-ci): tag v1.2 -> target preprod, tag
+# prod-v1.2 -> target prod. Copies the image of the environment before the target (its
+# "from" tag) to the target's tag and to the Git tag, and restarts the target.
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: {{ .Values.repo }}-promote
+  labels:
+    backstage.io/kubernetes-id: {{ .Values.component }}
+spec:
+  params:
+    - {name: tag, type: string}
+    - {name: target, type: string}
+  workspaces:
+    - name: source
+  tasks:
+    {{- if eq .Values.registry "quay" }}
+    {{- include "build.quayAuthTask" . | nindent 4 }}
+    {{- end }}
+    - name: promote
+      {{- if eq .Values.registry "quay" }}
+      runAfter: [registry-auth]
+      {{- end }}
+      taskRef:
+        resolver: cluster
+        params:
+          - {name: kind, value: task}
+          - {name: name, value: openshift-client}
+          - {name: namespace, value: openshift-pipelines}
+      params:
+        - name: SCRIPT
+          value: |
+            {{- include "build.functions" . | nindent 12 }}
+            case "$(params.target)" in
+            {{- range .Values.environments }}
+            {{- if .from }}
+              {{ .name }}) copy {{ .from }} {{ .name }}; copy {{ .from }} "$(params.tag)"; restart {{ .namespace }} ;;
+            {{- end }}
+            {{- end }}
+              *) echo "no environment $(params.target) to promote to"; exit 1 ;;
+            esac
+      workspaces:
+        - {name: manifest_dir, workspace: source}
+{{- end }}

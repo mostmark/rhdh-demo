@@ -1,0 +1,39 @@
+# The pipelines (service account "pipeline" in the build namespace) restart this
+# Deployment when a new image is ready.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Values.component }}-ci-rollout
+rules:
+  - {apiGroups: [apps], resources: [deployments], resourceNames: [{{ .Values.component }}], verbs: [get, patch]}
+  - {apiGroups: [apps], resources: [deployments, replicasets], verbs: [list, watch]}
+  - {apiGroups: [""], resources: [pods], verbs: [get, list, watch]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Values.component }}-ci-rollout
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: {{ .Values.component }}-ci-rollout}
+subjects: [{kind: ServiceAccount, name: pipeline, namespace: {{ .Values.buildNamespace }}}]
+{{- if .Values.watchServices }}
+---
+# The application watches Services in its namespace (service discovery).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.component }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Values.component }}-watch-services
+rules:
+  - {apiGroups: [""], resources: [services, endpoints], verbs: [get, list, watch]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Values.component }}-watch-services
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: {{ .Values.component }}-watch-services}
+subjects: [{kind: ServiceAccount, name: {{ .Values.component }}}]
+{{- end }}

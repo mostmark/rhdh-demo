@@ -1,0 +1,11 @@
+name: ${{ values.component }}-dev
+namespace: demo-${{ values.space }}
+chart: helm/app
+component: ${{ values.component }}
+environment: dev
+image:
+  tag: latest
+host: ${{ values.component }}.__APPS_DOMAIN__
+# the gateway watches the Services of the workshop space
+watchServices: true
+connectsTo: '[{"apiVersion":"apps/v1","kind":"Deployment","name":"${{ values.space }}-poi-backend"}]'

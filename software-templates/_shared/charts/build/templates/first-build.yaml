@@ -1,0 +1,73 @@
+# First build when Argo CD creates this namespace: starts {{ .Values.repo }}-ci once and
+# waits for it. Later builds start on git push.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: first-build
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: first-build
+rules:
+  - {apiGroups: [tekton.dev], resources: [pipelineruns], verbs: [create, get, list, watch]}
+  - {apiGroups: [""], resources: [serviceaccounts], verbs: [get]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: first-build
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: first-build}
+subjects: [{kind: ServiceAccount, name: first-build}]
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: first-build
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 2400
+  template:
+    spec:
+      serviceAccountName: first-build
+      restartPolicy: Never
+      containers:
+        - name: start
+          image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              if [ -n "$(oc get pipelineruns -l tekton.dev/pipeline={{ .Values.repo }}-ci -o name)" ]; then
+                echo "built before; later builds start on git push"; exit 0
+              fi
+              echo "waiting for the pipeline service account"
+              until oc get serviceaccount pipeline >/dev/null 2>&1; do sleep 3; done
+              run=$(oc create -o name -f - <<'RUN'
+              apiVersion: tekton.dev/v1
+              kind: PipelineRun
+              metadata:
+                generateName: {{ .Values.repo }}-ci-
+                labels:
+                  backstage.io/kubernetes-id: {{ .Values.component }}
+                  tekton.dev/pipeline: {{ .Values.repo }}-ci
+              spec:
+                pipelineRef: {name: {{ .Values.repo }}-ci}
+                taskRunTemplate: {serviceAccountName: pipeline}
+                workspaces:
+                  - name: source
+                    volumeClaimTemplate:
+                      spec:
+                        accessModes: [ReadWriteOnce]
+                        resources: {requests: {storage: 1Gi}}
+              RUN
+              )
+              echo "started $run"
+              oc wait --for=condition=Succeeded "$run" --timeout=35m
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}

@@ -1,0 +1,69 @@
+# Build on every push to main: clone, build the image (Containerfile), push it with tag
+# latest, roll out the first environment. Environments with "from" get their first image
+# here too, then only by promotion.
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: {{ .Values.repo }}-ci
+  labels:
+    backstage.io/kubernetes-id: {{ .Values.component }}
+spec:
+  params:
+    - {name: git-url, type: string, default: {{ .Values.gitUrl | quote }}}
+    - {name: git-revision, type: string, default: main}
+  workspaces:
+    - name: source
+  tasks:
+    - name: fetch-source
+      taskRef:
+        resolver: cluster
+        params:
+          - {name: kind, value: task}
+          - {name: name, value: git-clone}
+          - {name: namespace, value: openshift-pipelines}
+      params:
+        - {name: URL, value: $(params.git-url)}
+        - {name: REVISION, value: $(params.git-revision)}
+      workspaces:
+        - {name: output, workspace: source, subPath: src}
+    {{- if eq .Values.registry "quay" }}
+    {{- include "build.quayAuthTask" . | nindent 4 }}
+      runAfter: [fetch-source]
+    {{- end }}
+    - name: build-image
+      runAfter: [{{ if eq .Values.registry "quay" }}registry-auth{{ else }}fetch-source{{ end }}]
+      taskRef:
+        resolver: cluster
+        params:
+          - {name: kind, value: task}
+          - {name: name, value: buildah}
+          - {name: namespace, value: openshift-pipelines}
+      params:
+        - {name: IMAGE, value: "{{ .Values.image.repository }}:latest"}
+        - {name: DOCKERFILE, value: {{ .Values.containerfile | quote }}}
+      workspaces:
+        - {name: source, workspace: source, subPath: src}
+        {{- if eq .Values.registry "quay" }}
+        - {name: dockerconfig, workspace: source, subPath: .docker}
+        {{- end }}
+    - name: deploy
+      runAfter: [build-image]
+      taskRef:
+        resolver: cluster
+        params:
+          - {name: kind, value: task}
+          - {name: name, value: openshift-client}
+          - {name: namespace, value: openshift-pipelines}
+      params:
+        - name: SCRIPT
+          value: |
+            {{- include "build.functions" . | nindent 12 }}
+            {{- range .Values.environments }}
+            {{- if not .from }}
+            restart {{ .namespace }}
+            {{- else }}
+            if ! exists {{ .name }}; then copy {{ .from }} {{ .name }}; restart {{ .namespace }}; fi
+            {{- end }}
+            {{- end }}
+      workspaces:
+        - {name: manifest_dir, workspace: source}

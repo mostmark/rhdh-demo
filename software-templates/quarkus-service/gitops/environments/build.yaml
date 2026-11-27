@@ -1,0 +1,13 @@
+# Argo CD (ApplicationSet gitops-envs) makes one Application per file in this folder; each
+# file is also the values file of its chart (helm/build or helm/app).
+name: ${{ values.component }}-build
+namespace: ${{ values.buildNamespace }}
+chart: helm/build
+component: ${{ values.component }}
+# dev gets every build; preprod and prod start from the first build, then only change by
+# promotion (Git tag v1.0 -> preprod, prod-v1.0 -> prod)
+environments:
+  - {name: dev, namespace: demo-${{ values.component }}-dev}
+  - {name: preprod, namespace: demo-${{ values.component }}-preprod, from: latest}
+  - {name: prod, namespace: demo-${{ values.component }}-prod, from: preprod}
+promote: true

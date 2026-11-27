@@ -1,6 +1,7 @@
 # Seed GitLab for the demo. Runs inside the GitLab pod via `gitlab-rails runner -`.
 # The seed Job prepends: APPS, DEMO_GROUP, DEMO_REPO, DEV_GROUP, SYSTEM_HOOK_URL,
-# DEVSPACES_URL, DEVSPACES_SECRET_EXISTS, CURRENT_TOKEN, FILES.
+# DEVSPACES_URL, DEVSPACES_SECRET_EXISTS, CURRENT_TOKEN, FILES, TEMPLATES_SRC (a folder in
+# the GitLab pod, or empty), TEMPLATES_GROUP, TEMPLATES_REPO, TEMPLATES_REVISION.
 # Idempotent: existing groups, projects and a still-valid token are left alone; the
 # demo-layer repo is only updated while it holds nothing but seed commits.
 
@@ -36,7 +37,7 @@ end
 demo = ensure_group.call(DEMO_GROUP)
 ensure_group.call(DEV_GROUP)
 
-# Push events -> Tekton EventListener (CI for repos created from software templates).
+# Push and tag events -> Tekton EventListener (CI and promotion for software-template repos).
 # A system hook (not per-project webhooks) because no scaffolder action creates webhooks.
 unless SYSTEM_HOOK_URL.to_s.empty?
   # The URL points into the cluster network, which GitLab blocks unless the host is allowed.
@@ -50,11 +51,11 @@ unless SYSTEM_HOOK_URL.to_s.empty?
   # the URL is stored encrypted, so match in Ruby rather than in SQL
   hook = SystemHook.all.find { |h| h.url == SYSTEM_HOOK_URL } || SystemHook.new(url: SYSTEM_HOOK_URL)
   hook.organization_id ||= org_id if org_id && hook.respond_to?(:organization_id=)
-  hook.assign_attributes(push_events: true, tag_push_events: false, merge_requests_events: false,
+  hook.assign_attributes(push_events: true, tag_push_events: true, merge_requests_events: false,
                          repository_update_events: false, enable_ssl_verification: false)
   if hook.new_record? || hook.changed?
     hook.save!
-    log.call("system hook for push events -> #{SYSTEM_HOOK_URL}")
+    log.call("system hook for push and tag events -> #{SYSTEM_HOOK_URL}")
   end
 end
 
@@ -119,6 +120,68 @@ elsif repo.commits('main', limit: 1000).all? { |c| c.safe_message.to_s.start_wit
   end
 else
   log.call("#{full_path} has commits besides the seed; not touched")
+end
+
+# Platform software templates: the platform repo's software-templates/ folder (fetched into
+# TEMPLATES_SRC by seed.sh) in a public repo that Developer Hub's base app-config
+# registers. Kept identical to the platform (files created, updated and deleted) as long
+# as every commit is a seed commit; after someone else commits it is left alone.
+if !TEMPLATES_SRC.to_s.empty? && Dir.exist?(TEMPLATES_SRC)
+  tgroup = ensure_group.call(TEMPLATES_GROUP)
+  tpath = "#{TEMPLATES_GROUP}/#{TEMPLATES_REPO}"
+  tproject = Project.find_by_full_path(tpath)
+  unless tproject
+    params = { name: TEMPLATES_REPO, path: TEMPLATES_REPO, namespace_id: tgroup.id,
+               visibility_level: Gitlab::VisibilityLevel::PUBLIC }
+    params[:organization_id] = org_id if org_id
+    tproject = Projects::CreateService.new(root, params).execute
+    raise "project #{tpath}: #{tproject.errors.full_messages.join(', ')}" unless tproject.persisted?
+
+    log.call("created project #{tpath}")
+  end
+  tmsg = 'Seed the platform software templates'
+  trepo = tproject.repository
+  files = Dir.glob('**/*', File::FNM_DOTMATCH, base: TEMPLATES_SRC)
+             .select { |f| File.file?(File.join(TEMPLATES_SRC, f)) && !f.split('/').include?('.git') }
+  twanted = files.to_h do |f|
+    data = File.binread(File.join(TEMPLATES_SRC, f))
+    text = data.dup.force_encoding('UTF-8')
+    data = text.gsub('__APPS_DOMAIN__', APPS).b if text.valid_encoding?
+    [f, { data: data, exec: File.executable?(File.join(TEMPLATES_SRC, f)) }]
+  end
+  act = lambda do |kind, path, file|
+    a = { action: kind, file_path: path }
+    if file
+      a.merge!(content: Base64.strict_encode64(file[:data]), encoding: 'base64')
+      a[:execute_filemode] = true if file[:exec]
+    end
+    a
+  end
+  if trepo.empty?
+    trepo.commit_files(root, branch_name: 'main', message: "#{tmsg} (#{TEMPLATES_REVISION[0, 7]})",
+                             actions: twanted.sort.map { |p, f| act.call(:create, p, f) })
+    tproject.change_head('main') if tproject.respond_to?(:change_head)
+    log.call("seeded #{tpath} with #{twanted.size} files")
+  elsif trepo.commits('main', limit: 1000).all? { |c| c.safe_message.to_s.start_with?(tmsg) }
+    actions = twanted.sort.filter_map do |p, f|
+      blob = trepo.blob_at('main', p)
+      if blob.nil?
+        act.call(:create, p, f)
+      else
+        blob.load_all_data!
+        act.call(:update, p, f) if blob.data.b != f[:data]
+      end
+    end
+    (trepo.ls_files('main') - twanted.keys).each { |p| actions << act.call(:delete, p, nil) }
+    if actions.empty?
+      log.call("#{tpath} matches the platform repo")
+    else
+      trepo.commit_files(root, branch_name: 'main', message: "#{tmsg} (#{TEMPLATES_REVISION[0, 7]})", actions: actions)
+      log.call("updated #{tpath}: #{actions.size} files")
+    end
+  else
+    log.call("#{tpath} has commits besides the seed; not touched")
+  end
 end
 
 # Token for Developer Hub (catalog discovery, scaffolder publish:gitlab, URL reading).

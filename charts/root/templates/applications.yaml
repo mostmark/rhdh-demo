@@ -37,6 +37,12 @@ spec:
       valuesObject:
         appsDomain: {{ $root.Values.appsDomain }}
         components: {{ $root.Values.components | toJson }}
+        platformRepo: {{ $root.Values.repoURL }}
+      {{- if eq .name "gitlab" }}
+      # the commit Argo CD synced: the seed copies software-templates/ from it
+      parameters:
+        - {name: platformRevision, value: $ARGOCD_APP_REVISION}
+      {{- end }}
     {{- end }}
   syncPolicy:
     automated: {prune: true, selfHeal: true}
