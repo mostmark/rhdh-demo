@@ -1,0 +1,35 @@
+# Developers see the whole catalog except templates tagged "platform-only".
+result: CONDITIONAL
+roleEntityRef: role:default/developer
+pluginId: catalog
+resourceType: catalog-entity
+permissionMapping:
+  - read
+conditions:
+  not:
+    allOf:
+      - rule: IS_ENTITY_KIND
+        resourceType: catalog-entity
+        params:
+          kinds:
+            - Template
+      - rule: HAS_METADATA
+        resourceType: catalog-entity
+        params:
+          key: tags
+          value: platform-only
+---
+# Developers may refresh and unregister only entities their own team owns.
+result: CONDITIONAL
+roleEntityRef: role:default/developer
+pluginId: catalog
+resourceType: catalog-entity
+permissionMapping:
+  - update
+  - delete
+conditions:
+  rule: IS_ENTITY_OWNER
+  resourceType: catalog-entity
+  params:
+    claims:
+      - $ownerRefs

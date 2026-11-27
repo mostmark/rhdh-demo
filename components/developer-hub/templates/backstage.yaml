@@ -29,6 +29,11 @@ spec:
         - name: rhdh-k8s-reader-token    # becomes the env var 'token'
           key: token
     extraFiles:
+      configMaps:
+        # RBAC policy, written by the demo layer's team-access hook. Mounted as a directory
+        # (no key), so changes reach the pod without a restart and policyFileReload applies them.
+        - name: rbac-policies
+          mountPath: /opt/app-root/src/rbac
       secrets:
         - name: rhdh-k8s-reader-token    # cluster CA for the Kubernetes plugins (no SA token mount in the pod)
           key: ca.crt

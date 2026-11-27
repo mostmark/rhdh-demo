@@ -1,0 +1,130 @@
+# Runs during every demo-layer sync, before the workload Applications (sync wave -1; the
+# demo layer's ConfigMaps keycloak/demo-org and rhdh/rbac-roles are in wave -2): derives
+# team access from the demo organisation (see files/team_access.py):
+#   - Developer Hub RBAC policy: ConfigMap rhdh/rbac-policies (mounted by the Backstage CR)
+#   - one OpenShift Group per team + {{ .Values.teamAccess.platformGroup }} (Argo CD groups)
+#   - one Argo CD AppProject team-<team> per team, read-only for that team
+# Security: the service account may create, change and delete OpenShift Groups
+# cluster-wide (names are dynamic, so RBAC can't narrow it); the script only touches groups
+# carrying the label rhdh-demo/team-access=true.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rhdh-demo-team-access
+  namespace: openshift-gitops
+  annotations: {argocd.argoproj.io/sync-wave: "-2"}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: rhdh-demo-team-access
+  annotations: {argocd.argoproj.io/sync-wave: "-2"}
+rules:
+  - {apiGroups: [user.openshift.io], resources: [groups], verbs: [get, list, create, patch, delete]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: rhdh-demo-team-access
+  annotations: {argocd.argoproj.io/sync-wave: "-2"}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: rhdh-demo-team-access}
+subjects: [{kind: ServiceAccount, name: rhdh-demo-team-access, namespace: openshift-gitops}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rhdh-demo-team-access
+  namespace: openshift-gitops
+  annotations: {argocd.argoproj.io/sync-wave: "-2"}
+rules:
+  - {apiGroups: [argoproj.io], resources: [appprojects], verbs: [get, list, create, patch, delete]}
+  - {apiGroups: [argoproj.io], resources: [applications], verbs: [list]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rhdh-demo-team-access
+  namespace: openshift-gitops
+  annotations: {argocd.argoproj.io/sync-wave: "-2"}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: rhdh-demo-team-access}
+subjects: [{kind: ServiceAccount, name: rhdh-demo-team-access, namespace: openshift-gitops}]
+---
+# Developer Hub namespace: read the demo layer's roles, write the generated policy.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rhdh-demo-team-access
+  namespace: rhdh
+  annotations: {argocd.argoproj.io/sync-wave: "-2"}
+rules:
+  - {apiGroups: [""], resources: [configmaps], resourceNames: [rbac-roles, rbac-policies], verbs: [get, patch]}
+  - {apiGroups: [""], resources: [configmaps], verbs: [create]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rhdh-demo-team-access
+  namespace: rhdh
+  annotations: {argocd.argoproj.io/sync-wave: "-2"}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: rhdh-demo-team-access}
+subjects: [{kind: ServiceAccount, name: rhdh-demo-team-access, namespace: openshift-gitops}]
+---
+# Read only the demo organisation.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rhdh-demo-team-access
+  namespace: keycloak
+  annotations: {argocd.argoproj.io/sync-wave: "-2"}
+rules:
+  - {apiGroups: [""], resources: [configmaps], resourceNames: [demo-org], verbs: [get]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rhdh-demo-team-access
+  namespace: keycloak
+  annotations: {argocd.argoproj.io/sync-wave: "-2"}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: rhdh-demo-team-access}
+subjects: [{kind: ServiceAccount, name: rhdh-demo-team-access, namespace: openshift-gitops}]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rhdh-demo-team-access
+  namespace: openshift-gitops
+  annotations: {argocd.argoproj.io/sync-wave: "-2"}
+data:
+  team_access.py: {{ .Files.Get "files/team_access.py" | quote }}
+  rbac-roles.csv: {{ .Files.Get "files/rbac-roles.csv" | quote }}
+  conditional-policies.yaml: {{ .Files.Get "files/conditional-policies.yaml" | quote }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rhdh-demo-team-access
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  template:
+    spec:
+      serviceAccountName: rhdh-demo-team-access
+      restartPolicy: Never
+      containers:
+        - name: access
+          image: {{ .Values.image }}
+          command: [python3, /script/team_access.py]
+          env:
+            - {name: PLATFORM_GROUP, value: {{ .Values.teamAccess.platformGroup | quote }}}
+            - {name: TEMPLATE_PROJECT, value: {{ .Values.teamAccess.templateProject | quote }}}
+          volumeMounts: [{name: script, mountPath: /script}]
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}
+      volumes:
+        - {name: script, configMap: {name: rhdh-demo-team-access}}

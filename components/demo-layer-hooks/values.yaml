@@ -8,3 +8,6 @@ quay:
 gitlab:
   devGroup: development             # group the software templates create repositories in
   cliImage: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+teamAccess:
+  platformGroup: rhdh-demo-platform-admins   # OpenShift group with the platform team (Argo CD: all demo apps)
+  templateProject: demo-apps                 # team projects copy its destinations and source repos

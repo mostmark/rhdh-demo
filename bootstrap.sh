@@ -98,8 +98,10 @@ subjects:
 EOF
 # Health checks: Applications count as healthy only once Synced (so sync waves wait),
 # Backstage CRs only once deployed. Plus an API account for the Developer Hub Argo CD
-# plugin, limited to the demo-apps project, and read-only access to demo-apps for every
-# signed-in user (the demo personas sign in through OpenShift and belong to no group).
+# plugin, limited to the demo projects (demo-apps, team-*), and read-only access to all
+# demo projects for the platform team (OpenShift group rhdh-demo-platform-admins). Other
+# demo users see only their team's project: the demo layer's team-access hook makes the
+# projects team-<team> with a read-only role for the team's OpenShift group.
 # (patch on stdin, not via "$(cat <<EOF)": bash 3.2 mis-parses heredocs with parentheses inside $(…))
 oc patch argocd openshift-gitops -n openshift-gitops --type merge --patch-file /dev/stdin >/dev/null <<'EOF'
 {
@@ -108,8 +110,8 @@ oc patch argocd openshift-gitops -n openshift-gitops --type merge --patch-file /
    "accounts.rhdh": "apiKey"
   },
   "rbac": {
-   "policy": "g, system:cluster-admins, role:admin\ng, cluster-admins, role:admin\np, rhdh, applications, *, demo-apps/*, allow\np, rhdh, projects, get, demo-apps, allow\np, rhdh, clusters, get, *, allow\np, role:demo-viewer, applications, get, demo-apps/*, allow\np, role:demo-viewer, projects, get, demo-apps, allow\np, role:demo-viewer, logs, get, demo-apps/*, allow\n",
-   "defaultPolicy": "role:demo-viewer",
+   "policy": "g, system:cluster-admins, role:admin\ng, cluster-admins, role:admin\np, rhdh, applications, *, demo-apps/*, allow\np, rhdh, applications, *, team-*/*, allow\np, rhdh, projects, get, demo-apps, allow\np, rhdh, projects, get, team-*, allow\np, rhdh, clusters, get, *, allow\np, role:demo-viewer, applications, get, demo-apps/*, allow\np, role:demo-viewer, applications, get, team-*/*, allow\np, role:demo-viewer, projects, get, demo-apps, allow\np, role:demo-viewer, projects, get, team-*, allow\np, role:demo-viewer, logs, get, demo-apps/*, allow\np, role:demo-viewer, logs, get, team-*/*, allow\ng, rhdh-demo-platform-admins, role:demo-viewer\n",
+   "defaultPolicy": "",
    "scopes": "[groups]"
   },
   "resourceHealthChecks": [

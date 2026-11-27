@@ -1,5 +1,8 @@
 # The demo organisation: teams and people, applied to Keycloak realm sso by the platform's
 # org sync Job after every demo-layer sync. Developer Hub imports them from Keycloak.
+# Team access: the platform team ("platform": true, or the team named platform-team) gets
+# role platform-admin in Developer Hub and sees all demo apps in Argo CD; every other team
+# gets role developer and sees the apps in its Argo CD project team-<team>.
 # People sign in with the demo password (Secret keycloak/demo-credentials). Removing a
 # team or person here removes it from Keycloak (and from the catalog).
 apiVersion: v1
@@ -7,6 +10,10 @@ kind: ConfigMap
 metadata:
   name: demo-org
   namespace: keycloak
+  annotations:
+    # before the platform's team-access hook (wave -1), which derives Developer Hub RBAC,
+    # OpenShift groups and Argo CD team projects from it
+    argocd.argoproj.io/sync-wave: '-2'
 data:
   org.json: |
     {

@@ -1,0 +1,69 @@
+# Platform default roles for Developer Hub 2.1 (verified against the permissions in the
+# 2.1.0 image). The team-access hook appends the role bindings it derives from the demo
+# organisation: the platform team -> platform-admin, every other team -> developer.
+# A demo layer replaces this file with ConfigMap rhdh/rbac-roles (same key names); if
+# that file has its own 'g' lines, no bindings are generated.
+# '#' starts a comment only at the beginning of a line.
+
+# ---- platform-admin: everything, including RBAC administration (Administration -> RBAC)
+p, role:default/platform-admin, catalog.entity.read, read, allow
+p, role:default/platform-admin, catalog.entity.create, create, allow
+p, role:default/platform-admin, catalog.entity.refresh, update, allow
+p, role:default/platform-admin, catalog.entity.delete, delete, allow
+p, role:default/platform-admin, catalog.entity.validate, use, allow
+p, role:default/platform-admin, catalog.location.read, read, allow
+p, role:default/platform-admin, catalog.location.create, create, allow
+p, role:default/platform-admin, catalog.location.delete, delete, allow
+p, role:default/platform-admin, catalog.location.analyze, use, allow
+p, role:default/platform-admin, catalog.ingestion.read, read, allow
+p, role:default/platform-admin, catalog.ingestion.manage, update, allow
+p, role:default/platform-admin, scaffolder.template.parameter.read, read, allow
+p, role:default/platform-admin, scaffolder.template.step.read, read, allow
+p, role:default/platform-admin, scaffolder.template.management, use, allow
+p, role:default/platform-admin, scaffolder.template.dry-run, use, allow
+p, role:default/platform-admin, scaffolder.action.execute, use, allow
+p, role:default/platform-admin, scaffolder.task.create, create, allow
+p, role:default/platform-admin, scaffolder.task.read, read, allow
+p, role:default/platform-admin, scaffolder.task.cancel, use, allow
+p, role:default/platform-admin, kubernetes.clusters.read, read, allow
+p, role:default/platform-admin, kubernetes.resources.read, read, allow
+p, role:default/platform-admin, kubernetes.proxy, use, allow
+p, role:default/platform-admin, argocd.view.read, read, allow
+p, role:default/platform-admin, quay.view.read, read, allow
+p, role:default/platform-admin, orchestrator.workflow, read, allow
+p, role:default/platform-admin, orchestrator.workflow.use, update, allow
+p, role:default/platform-admin, orchestrator.workflowAdminView, read, allow
+p, role:default/platform-admin, orchestrator.instanceAdminView, read, allow
+p, role:default/platform-admin, adoption-insights.events.read, read, allow
+p, role:default/platform-admin, extensions.plugin.configuration.read, read, allow
+p, role:default/platform-admin, extensions.plugin.configuration.write, create, allow
+p, role:default/platform-admin, extensions.plugin.configuration.delete, delete, allow
+p, role:default/platform-admin, homepage.default-widgets.read, read, allow
+p, role:default/platform-admin, policy.entity.read, read, allow
+p, role:default/platform-admin, policy.entity.create, create, allow
+p, role:default/platform-admin, policy.entity.update, update, allow
+p, role:default/platform-admin, policy.entity.delete, delete, allow
+
+# ---- developer: use the portal, change only what the own team owns
+# catalog.entity.read / refresh / delete are conditional (conditional-policies.yaml):
+#   read: everything except templates tagged "platform-only"
+#   refresh, unregister: only entities owned by the user's team
+p, role:default/developer, catalog.entity.create, create, allow
+p, role:default/developer, catalog.entity.validate, use, allow
+p, role:default/developer, catalog.location.read, read, allow
+p, role:default/developer, catalog.location.create, create, allow
+p, role:default/developer, catalog.location.analyze, use, allow
+p, role:default/developer, scaffolder.template.parameter.read, read, allow
+p, role:default/developer, scaffolder.template.step.read, read, allow
+p, role:default/developer, scaffolder.action.execute, use, allow
+p, role:default/developer, scaffolder.task.create, create, allow
+p, role:default/developer, scaffolder.task.read, read, allow
+p, role:default/developer, scaffolder.task.cancel, use, allow
+p, role:default/developer, kubernetes.clusters.read, read, allow
+p, role:default/developer, kubernetes.resources.read, read, allow
+p, role:default/developer, kubernetes.proxy, use, allow
+p, role:default/developer, argocd.view.read, read, allow
+p, role:default/developer, quay.view.read, read, allow
+p, role:default/developer, orchestrator.workflow, read, allow
+p, role:default/developer, orchestrator.workflow.use, update, allow
+p, role:default/developer, homepage.default-widgets.read, read, allow

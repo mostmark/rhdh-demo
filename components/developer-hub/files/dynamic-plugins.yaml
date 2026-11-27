@@ -10,6 +10,7 @@ plugins:
   - {package: ref://backstage-plugin-kubernetes-backend, enabled: true}
   - {package: ref://backstage-community-plugin-topology, enabled: true}
   - {package: ref://backstage-community-plugin-scaffolder-backend-module-kubernetes, enabled: true}
+  - {package: ref://backstage-community-plugin-rbac, enabled: true}                         # Administration -> RBAC page
   # --- community-supported: not in the catalog index, so ref:// fails; pinned digests
   #     from the RHDH 2.1.1 community plugin table (ghcr.io/redhat-developer/rhdh-plugin-export-overlays)
   - {package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-argocd@sha256:040c49c1fdfcec81c1df7d62d033c05431bca4790c9ef7b4f193a19a79bcf980", enabled: true}

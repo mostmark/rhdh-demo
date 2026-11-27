@@ -46,6 +46,16 @@ data:
             clientSecret: ${KEYCLOAK_CLIENT_SECRET}
             prompt: auto
     signInPage: keycloak
+    # RBAC: roles and team bindings come from the demo layer's team-access hook
+    # (ConfigMap rbac-policies, mounted by the Backstage CR). Roles created on the
+    # Administration -> RBAC page are stored in the database.
+    permission:
+      enabled: true
+      rbac:
+        policies-csv-file: /opt/app-root/src/rbac/rbac-policy.csv
+        conditionalPoliciesFile: /opt/app-root/src/rbac/conditional-policies.yaml
+        policyFileReload: true
+        pluginsWithPermission: [catalog, scaffolder, permission, kubernetes, orchestrator, adoption-insights, extensions, homepage]
     integrations:
       gitlab:
         - host: gitlab.{{ .Values.appsDomain }}

@@ -61,6 +61,9 @@ spec:
         repoUrl: gitlab.__APPS_DOMAIN__?owner=development&repo=${{ parameters.name }}
         repoVisibility: public
         defaultBranch: main
+        # the owner's team: Argo CD puts the app into project team-<team>
+        topics:
+          - team-${{ parameters.owner | parseEntityRef | pick('name') }}
     - id: register
       name: Register in the catalog
       action: catalog:register

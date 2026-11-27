@@ -1,6 +1,8 @@
 # One Application per repo in GitLab group {{ .Values.serviceApps.group }} that has a deploy/ folder
-# (software template "New service"): namespace demo-<repo>, project demo-apps. The repos
-# are public, so no GitLab token is needed. New repos are picked up within a minute.
+# (software template "New service"): namespace demo-<repo>. Project: team-<team> when the
+# repo has the GitLab topic team-<team> (the template sets it from the owner; the
+# team-access hook creates the projects), else demo-apps. The repos are public, so no
+# GitLab token is needed. New repos are picked up within a minute.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -28,7 +30,8 @@ spec:
         rhdh-demo/source: service-apps
       finalizers: [resources-finalizer.argocd.argoproj.io]
     spec:
-      project: demo-apps
+      # .labels: the repo's GitLab topics, comma-separated
+      project: {{ `'{{ $p := "demo-apps" }}{{ range splitList "," .labels }}{{ if hasPrefix "team-" . }}{{ $p = . }}{{ end }}{{ end }}{{ $p }}'` }}
       source:
         repoURL: {{ `'{{ .url }}'` }}
         targetRevision: main
