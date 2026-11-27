@@ -60,8 +60,9 @@ root Application (Helm chart charts/root) → one Application per component, syn
          quay (Quay, PostgreSQL, Redis; Jobs: secrets, first user quayadmin)
  wave 2  demo-layer (Application → in-cluster GitLab repo demo/rhdh-demo-config,
          + components/demo-layer-hooks: Quay sync (Sync hook, before the workload apps:
-           organisation, public repos, image tags) and org sync (PostSync: teams and
-           people → Keycloak))
+           organisation, public repos, image tags), org sync (PostSync: teams and
+           people → Keycloak) and GitLab access (PostSync: people → Developers in
+           `development`))
  wave 3  developer-hub (ConfigMaps, Backstage CR, Kubernetes reader)
  wave 4  orchestrator-workflows (SonataFlow greeting)
 ```
@@ -76,7 +77,7 @@ components/
   operators/                      # Subscriptions/OperatorGroups (Pipelines, RHDH)
   gitlab/                         # GitLab Deployment, PVCs, Route, seed Job; files/demo-layer-seed = initial demo layer
   keycloak-config/                # Job: clients in realm sso
-  demo-layer-hooks/               # Jobs run on every demo-layer sync: Keycloak org sync, Quay sync
+  demo-layer-hooks/               # Jobs run on every demo-layer sync: Keycloak org sync, GitLab access, Quay sync
   gitops-config/                  # demo-apps AppProject, ApplicationSet service-apps, Argo CD token Job
   ci-triggers/                    # Tekton EventListener for GitLab push events
   developer-hub/                  # Backstage CR, base app-config, dynamic plugins, Kubernetes reader
@@ -131,7 +132,10 @@ branding and catalog locations, `keycloak-org.yaml` with teams and people, Argo 
 Applications for workloads), `catalog/` (entities, read by Developer Hub) and `apps/`
 (workload manifests). Teams and people live in Keycloak: the org sync Job creates them
 with the demo password and deletes the ones removed from `keycloak-org.yaml`; Developer
-Hub imports them from Keycloak.
+Hub imports them from Keycloak. The GitLab access Job gives the same people a GitLab
+account (signed in through Keycloak) and the Developer role in `development`, where
+Developers may push and merge to `main` (so pushes from Dev Spaces start the CI
+pipeline); people removed from the org lose that membership.
 
 Software templates live in the demo repo's `templates/`. The seeded `web-service`
 template creates a repo in `development` with a Dockerfile-style `Containerfile`, a

@@ -1,0 +1,81 @@
+# Runs after every sync of the demo-layer Application: gives the people in the demo
+# organisation (ConfigMap keycloak/demo-org) the Developer role in GitLab group
+# {{ .Values.gitlab.devGroup }} and lets Developers push to the default branch there.
+# Runs gitlab-access.rb in the GitLab pod like the GitLab seed does (no API token).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rhdh-demo-gitlab-access
+  namespace: gitlab
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rhdh-demo-gitlab-access
+  namespace: gitlab
+rules:
+  - {apiGroups: [""], resources: [pods], verbs: [get, list]}
+  - {apiGroups: [""], resources: [pods/exec], verbs: [create]}
+  - {apiGroups: [apps], resources: [deployments], resourceNames: [gitlab], verbs: [get]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rhdh-demo-gitlab-access
+  namespace: gitlab
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: rhdh-demo-gitlab-access}
+subjects: [{kind: ServiceAccount, name: rhdh-demo-gitlab-access, namespace: gitlab}]
+---
+# Read only the demo organisation.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rhdh-demo-gitlab-access
+  namespace: keycloak
+rules:
+  - {apiGroups: [""], resources: [configmaps], resourceNames: [demo-org], verbs: [get]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rhdh-demo-gitlab-access
+  namespace: keycloak
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: rhdh-demo-gitlab-access}
+subjects: [{kind: ServiceAccount, name: rhdh-demo-gitlab-access, namespace: gitlab}]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rhdh-demo-gitlab-access
+  namespace: gitlab
+data:
+  gitlab-access.sh: {{ .Files.Get "files/gitlab-access.sh" | quote }}
+  gitlab-access.rb: {{ .Files.Get "files/gitlab-access.rb" | quote }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rhdh-demo-gitlab-access
+  namespace: gitlab
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 1500
+  template:
+    spec:
+      serviceAccountName: rhdh-demo-gitlab-access
+      restartPolicy: Never
+      containers:
+        - name: access
+          image: {{ .Values.gitlab.cliImage }}
+          command: [/bin/bash, /script/gitlab-access.sh]
+          env:
+            - {name: DEV_GROUP, value: {{ .Values.gitlab.devGroup | quote }}}
+          volumeMounts: [{name: script, mountPath: /script}]
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}
+      volumes:
+        - {name: script, configMap: {name: rhdh-demo-gitlab-access}}

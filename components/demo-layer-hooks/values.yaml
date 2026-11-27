@@ -5,3 +5,6 @@ components: {}
 quay:
   cliImage: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
   skopeoImage: registry.redhat.io/rhel9/skopeo:latest
+gitlab:
+  devGroup: development             # group the software templates create repositories in
+  cliImage: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
