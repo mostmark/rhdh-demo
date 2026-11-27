@@ -6,9 +6,7 @@ metadata:
   description: >-
     Creates the Angular map of the points-of-interest workshop: it shows the gateway's points of interest on an OpenStreetMap map.
   tags: [typescript, angular, workshop]
-  annotations:
-    # ported from the Red Hat Summit 2023 Backstage workshop (redhat-scholars/backstage-workshop)
-    backstage.io/source-location: url:https://gitlab.__APPS_DOMAIN__/platform/software-templates/-/tree/main/poi-map
+  # ported from the Red Hat Summit 2023 Backstage workshop (redhat-scholars/backstage-workshop)
 spec:
   owner: group:default/platform-team
   type: service

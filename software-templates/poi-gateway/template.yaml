@@ -6,9 +6,7 @@ metadata:
   description: >-
     Creates the Quarkus gateway of the points-of-interest workshop: it registers the backends and serves them to the map (REST and WebSocket).
   tags: [java, quarkus, maven, workshop]
-  annotations:
-    # ported from the Red Hat Summit 2023 Backstage workshop (redhat-scholars/backstage-workshop)
-    backstage.io/source-location: url:https://gitlab.__APPS_DOMAIN__/platform/software-templates/-/tree/main/poi-gateway
+  # ported from the Red Hat Summit 2023 Backstage workshop (redhat-scholars/backstage-workshop)
 spec:
   owner: group:default/platform-team
   type: service

@@ -6,9 +6,7 @@ metadata:
   description: >-
     Creates the Quarkus points-of-interest backend (national parks) for the workshop: application and GitOps repositories, a Tekton pipeline and a deployment into the workshop space.
   tags: [java, quarkus, maven, workshop]
-  annotations:
-    # ported from the Red Hat Summit 2023 Backstage workshop (redhat-scholars/backstage-workshop)
-    backstage.io/source-location: url:https://gitlab.__APPS_DOMAIN__/platform/software-templates/-/tree/main/poi-backend
+  # ported from the Red Hat Summit 2023 Backstage workshop (redhat-scholars/backstage-workshop)
 spec:
   owner: group:default/platform-team
   type: service

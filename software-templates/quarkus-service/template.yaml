@@ -13,9 +13,7 @@ metadata:
     - java
     - quarkus
     - maven
-  annotations:
-    # ported from the RHDP Developer Hub catalog item (rhpds/developer-hub-software-templates)
-    backstage.io/source-location: url:https://gitlab.__APPS_DOMAIN__/platform/software-templates/-/tree/main/quarkus-service
+  # ported from the RHDP Developer Hub catalog item (rhpds/developer-hub-software-templates)
 spec:
   owner: group:default/platform-team
   type: service
