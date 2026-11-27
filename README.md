@@ -4,13 +4,12 @@ Bootstrap an empty OpenShift cluster into a Red Hat Developer Hub (RHDH) 2.1 dem
 environment: one script installs OpenShift GitOps, then Argo CD installs everything
 else from this repository.
 
-> **Status: work in progress** (branch `wip`). Phase 1 runs end to end on a single-node
-> OpenShift 4.22 cluster: Developer Hub 2.1.0 with Keycloak sign-in, users and groups
-> from Keycloak, the demo-layer catalog from the in-cluster GitLab, and GitLab sign-in
-> through Keycloak, and a sample workload (`hello-service`: Argo CD, Kubernetes,
-> Topology and Tekton views).
+> **Status: work in progress** (branch `wip`), verified on a single-node OpenShift 4.22
+> cluster: Developer Hub 2.1.0 with Keycloak sign-in and users/groups from Keycloak,
+> GitLab, a demo layer with catalog, workloads and a software template (GitLab repo,
+> Tekton build, Argo CD deployment), plus the Orchestrator, Dev Spaces and Quay.
 
-## What you get (phase 1)
+## What you get
 
 | Component | How | Notes |
 |---|---|---|
@@ -23,8 +22,12 @@ else from this repository.
 | Developer Hub 2.1 | Argo CD, RHDH operator (`fast-2.1`) + `Backstage` CR | Keycloak sign-in, users from Keycloak |
 | Demo layer | Argo CD app reading a repo in the in-cluster GitLab | Branding, teams and people, catalog, workloads: changed per demo without touching this repo |
 
-Phase 2: Orchestrator (OpenShift Serverless + Serverless Logic, `orchestrator` flavour),
-Dev Spaces, Quay.
+| Orchestrator | Argo CD: Serverless (`stable-1.37`) + Serverless Logic (1.39.2) operators, Knative, the CR's `orchestrator` flavour | Sample workflow `greeting` (prebuilt image); Notifications + Signals |
+| Dev Spaces | Argo CD: operator + CheCluster | `https://devspaces.<apps>`, sign-in through OpenShift (Keycloak), GitLab OAuth for clone/push; template repos get an *Open in Dev Spaces* link and a devfile |
+| Quay | Argo CD: Quay 3.17 + PostgreSQL + Redis as plain Deployments | **Demo-grade**: images on a PVC (LocalStorage), no Clair; `https://quay.<apps>`, admin `quayadmin`; Quay tab in Developer Hub (no token: public repositories) |
+
+Each of these three can be switched off with the root Application's toggles
+(`components.orchestrator`, `components.devSpaces`, `components.quay`).
 
 Requirements: OpenShift 4.19–4.22 with a default storage class, a trusted ingress
 certificate, the Red Hat build of Keycloak with realm `sso` (as provided by the target
@@ -44,14 +47,20 @@ bootstrap.sh
     component toggles
 root Application (Helm chart charts/root) → one Application per component, sync waves:
  wave 0  operators: Pipelines, RHDH operator
+         devspaces (operator, CheCluster; before the gitlab seed writes its OAuth Secret)
  wave 1  gitlab (+ PostSync seed Job: groups, demo-layer repo, Developer Hub token)
          keycloak-config (PostSync Job: clients rhdh and gitlab in realm sso)
          gitops-config (demo-apps AppProject, ApplicationSet service-apps,
                        PostSync Job: Argo CD token for Developer Hub)
          ci-triggers (EventListener: GitLab pushes start service pipelines)
+         orchestrator-infra (Serverless, Serverless Logic, KnativeServing/Eventing)
+         quay (Quay, PostgreSQL, Redis; Jobs: secrets, first user quayadmin)
  wave 2  demo-layer (Application → in-cluster GitLab repo demo/rhdh-demo-config,
-         + components/demo-layer-hooks: PostSync org sync Job, teams and people → Keycloak)
+         + components/demo-layer-hooks: Quay sync (Sync hook, before the workload apps:
+           organisation, public repos, image tags) and org sync (PostSync: teams and
+           people → Keycloak))
  wave 3  developer-hub (ConfigMaps, Backstage CR, Kubernetes reader)
+ wave 4  orchestrator-workflows (SonataFlow greeting)
 ```
 
 ## Repository layout
@@ -64,10 +73,14 @@ components/
   operators/                      # Subscriptions/OperatorGroups (Pipelines, RHDH)
   gitlab/                         # GitLab Deployment, PVCs, Route, seed Job; files/demo-layer-seed = initial demo layer
   keycloak-config/                # Job: clients in realm sso
-  demo-layer-hooks/               # Jobs run on every demo-layer sync: Keycloak org sync
+  demo-layer-hooks/               # Jobs run on every demo-layer sync: Keycloak org sync, Quay sync
   gitops-config/                  # demo-apps AppProject, ApplicationSet service-apps, Argo CD token Job
   ci-triggers/                    # Tekton EventListener for GitLab push events
   developer-hub/                  # Backstage CR, base app-config, dynamic plugins, Kubernetes reader
+  orchestrator-infra/             # Serverless + Serverless Logic operators, Knative
+  orchestrator-workflows/         # sample workflow greeting
+  devspaces/                      # Dev Spaces operator + CheCluster
+  quay/                           # demo-grade Quay
 docs/                             # design notes, versions, troubleshooting
 ```
 
@@ -137,6 +150,11 @@ seed commits; after your first commit the repo is yours.
 - The `demo-layer` Application runs in the `default` AppProject with the cluster-admin
   controller, so whoever can push to `demo/rhdh-demo-config` can change anything on the
   cluster. Keep that repo's write access to the people running the demo.
+- Quay is demo-grade: one pod, images on a PVC, no vulnerability scanning, new
+  repositories public. Its admin credentials and API token stay in Secret
+  `quay/quay-admin`; the Quay sync Job uses them, Developer Hub doesn't get a token.
+- The GitLab OAuth application for Dev Spaces is trusted (no consent screen); its secret
+  is in `openshift-devspaces/devspaces-gitlab-oauth`.
 - Demo users share one password, generated by `bootstrap.sh` (or given with
   `DEMO_PASSWORD`). It's meant for short-lived demo clusters.
 
