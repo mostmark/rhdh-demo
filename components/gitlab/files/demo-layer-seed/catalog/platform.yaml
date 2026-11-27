@@ -1,0 +1,55 @@
+# The demo platform's own tools (installed by the rhdh-demo bootstrap), as catalog
+# resources with links. Components can depend on them (e.g. resource:quay).
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: gitlab
+  title: GitLab
+  description: Git server for all demo repositories (sign-in through Keycloak).
+  links: [{url: "https://gitlab.__APPS_DOMAIN__", title: GitLab, icon: code}]
+spec: {type: git-server, owner: group:default/platform-team, system: demo-platform}
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: openshift-gitops
+  title: OpenShift GitOps
+  description: Argo CD that deploys the platform and every team's applications.
+  links: [{url: "https://openshift-gitops-server-openshift-gitops.__APPS_DOMAIN__", title: Argo CD, icon: dashboard}]
+spec: {type: cd-platform, owner: group:default/platform-team, system: demo-platform}
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: openshift-pipelines
+  title: OpenShift Pipelines
+  description: Tekton pipelines that build every service on push.
+  links: [{url: "https://console-openshift-console.__APPS_DOMAIN__/pipelines", title: Pipelines in the console, icon: dashboard}]
+spec: {type: ci-platform, owner: group:default/platform-team, system: demo-platform}
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: quay
+  title: Quay
+  description: Container registry (demo-grade).
+  links: [{url: "https://quay.__APPS_DOMAIN__", title: Quay, icon: dashboard}]
+spec: {type: container-registry, owner: group:default/platform-team, system: demo-platform}
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: openshift-devspaces
+  title: OpenShift Dev Spaces
+  description: Browser-based development environments.
+  links: [{url: "https://devspaces.__APPS_DOMAIN__", title: Dev Spaces, icon: code}]
+spec: {type: ide, owner: group:default/platform-team, system: demo-platform}
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: keycloak
+  title: Keycloak
+  description: Single sign-on for OpenShift, GitLab, Dev Spaces and Developer Hub (realm sso).
+  links: [{url: "https://sso.__APPS_DOMAIN__", title: Keycloak, icon: dashboard}]
+spec: {type: identity-provider, owner: group:default/platform-team, system: demo-platform}
