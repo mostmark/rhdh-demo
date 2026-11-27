@@ -8,6 +8,9 @@ data:
   {{- if (.Values.components | default dict).quay }}
   {{- $plugins = printf "%s%s" $plugins (.Files.Get "files/dynamic-plugins-quay.yaml") }}
   {{- end }}
+  {{- if (.Values.components | default dict).orchestrator }}
+  {{- $plugins = printf "%s%s" $plugins (.Files.Get "files/dynamic-plugins-orchestrator.yaml") }}
+  {{- end }}
   dynamic-plugins.yaml: {{ $plugins | quote }}
 ---
 # Platform defaults. The demo layer's app-config-demo is loaded after this and wins.

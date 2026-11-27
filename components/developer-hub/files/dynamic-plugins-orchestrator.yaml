@@ -1,0 +1,5 @@
+  # --- Notifications + Signals (components.orchestrator; also on in the 1.10 environment): GA, ref://
+  - {package: ref://backstage-plugin-notifications, enabled: true}
+  - {package: ref://backstage-plugin-notifications-backend, enabled: true}
+  - {package: ref://backstage-plugin-signals, enabled: true}
+  - {package: ref://backstage-plugin-signals-backend, enabled: true}
