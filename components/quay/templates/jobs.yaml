@@ -11,10 +11,10 @@ metadata:
   annotations: {argocd.argoproj.io/sync-wave: "-2"}
 rules:
   - {apiGroups: [""], resources: [secrets], verbs: [create]}
-  - {apiGroups: [""], resources: [secrets], resourceNames: [quay-db, quay-config, quay-admin], verbs: [get]}
-  - {apiGroups: [""], resources: [secrets], resourceNames: [quay-config, quay-admin, quay-ci-push], verbs: [patch]}
+  - {apiGroups: [""], resources: [secrets], resourceNames: [quay-db, quay-config, quay-admin, clair-db, clair-config], verbs: [get]}
+  - {apiGroups: [""], resources: [secrets], resourceNames: [quay-config, quay-admin, quay-ci-push, clair-config], verbs: [patch]}
   - {apiGroups: [""], resources: [secrets], resourceNames: [quay-ci-push], verbs: [get]}
-  - {apiGroups: [apps], resources: [deployments], resourceNames: [quay], verbs: [get, patch]}
+  - {apiGroups: [apps], resources: [deployments], resourceNames: [quay, clair], verbs: [get, patch]}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -57,6 +57,7 @@ spec:
             - {name: APPS_DOMAIN, value: {{ .Values.appsDomain | quote }}}
             - {name: ADMIN_USER, value: {{ .Values.adminUser | quote }}}
             - {name: SCANNER_ENDPOINT, value: {{ .Values.scanner.endpoint | quote }}}
+            - {name: CLAIR_UPDATERS, value: {{ .Values.clair.updaters | quote }}}
           volumeMounts: [{name: scripts, mountPath: /scripts}]
           resources: {requests: {cpu: 10m, memory: 32Mi}, limits: {memory: 128Mi}}
       volumes: [{name: scripts, configMap: {name: quay-setup-scripts}}]

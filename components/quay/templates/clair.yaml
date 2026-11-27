@@ -1,0 +1,91 @@
+{{- if .Values.clair.enabled }}
+# Clair v4 (vulnerability scanner for Quay), combo mode: indexer, matcher and notifier in one
+# pod, with its own PostgreSQL. Config and PSK come from the secrets Job (Secrets clair-db,
+# clair-config); Quay reaches it at {{ .Values.scanner.endpoint }}. Vulnerability data:
+# updaters {{ .Values.clair.updaters }}; the first update after install takes a while, and
+# until then scan results show no (or few) vulnerabilities.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: clair-postgres}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: {{ .Values.storage.clairDatabase }}}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: clair-postgres, labels: {app: clair-postgres}}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: clair-postgres}}
+  template:
+    metadata: {labels: {app: clair-postgres}}
+    spec:
+      containers:
+        - name: postgres
+          image: {{ .Values.images.postgres }}
+          envFrom: [{secretRef: {name: clair-db}}]
+          ports: [{containerPort: 5432}]
+          readinessProbe:
+            exec: {command: [/usr/libexec/check-container]}
+            initialDelaySeconds: 10
+          resources:
+            requests: {cpu: 50m, memory: 256Mi}
+            limits: {memory: 2Gi}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/pgsql/data}
+      volumes:
+        - {name: data, persistentVolumeClaim: {claimName: clair-postgres}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: clair-postgres}
+spec:
+  selector: {app: clair-postgres}
+  ports: [{name: postgres, port: 5432, targetPort: 5432}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: clair, labels: {app: clair}}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: clair}}
+  template:
+    metadata: {labels: {app: clair}}
+    spec:
+      containers:
+        - name: clair
+          image: {{ .Values.images.clair }}
+          env:
+            - {name: CLAIR_CONF, value: /clair/config.yaml}
+            - {name: CLAIR_MODE, value: combo}
+          ports:
+            - {containerPort: 8080, name: http}
+            - {containerPort: 8089, name: introspection}
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8089}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8089}
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests: {cpu: 100m, memory: 512Mi}
+            limits: {memory: {{ .Values.clair.memoryLimit }}}
+          volumeMounts:
+            - {name: config, mountPath: /clair}
+      volumes:
+        - {name: config, secret: {secretName: clair-config}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: clair}
+spec:
+  selector: {app: clair}
+  ports:
+    - {name: http, port: 8080, targetPort: 8080}
+    - {name: introspection, port: 8089, targetPort: 8089}
+{{- end }}
