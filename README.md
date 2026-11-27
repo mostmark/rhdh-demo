@@ -9,8 +9,6 @@ else from this repository.
 > GitLab, a demo layer with catalog, workloads and a software template (GitLab repo,
 > Tekton build, Argo CD deployment), plus the Orchestrator, Dev Spaces and Quay.
 >
-> **To do:** Clair for Quay, so the Quay tab shows real vulnerability results
-> (`components/quay/values.yaml` already points `scanner.endpoint` at `http://clair:8080`).
 
 ## What you get
 
@@ -25,12 +23,13 @@ else from this repository.
 | Apps from GitOps repos | ApplicationSet `gitops-envs` | One Argo CD app per `environments/<env>.yaml` in a repo of `development` (the templates' `-gitops` repos), in the owner team's project |
 | CI for those apps | Argo CD, Tekton EventListener (`rhdh-demo-ci`) + GitLab system hook | Every push to `main` in `development` runs the repo's pipeline `<repo>-ci`; a tag runs `<repo>-promote` to preprod, a GitLab release to prod (project webhook per repo, added by bot `rhdh-ci-hooks`) |
 | Developer Hub 2.1 | Argo CD, RHDH operator (`fast-2.1`) + `Backstage` CR | Keycloak sign-in, users from Keycloak, RBAC per team (*Administration → RBAC*) |
+| Tech Radar | Developer Hub plugins (GA) | Data: `tech-radar.json` in the demo layer repo (the seed has a generic sample; a demo profile brings its own) |
 | Team access | Demo-layer hook Job `team-access` | From the demo organisation: Developer Hub roles (platform team → `platform-admin`, other teams → `developer`), one OpenShift group and one Argo CD project per team (each team sees its own apps) |
 | Demo layer | Argo CD app reading a repo in the in-cluster GitLab | Branding, teams and people, catalog, workloads: changed per demo without touching this repo |
 
 | Orchestrator | Argo CD: Serverless (`stable-1.37`) + Serverless Logic (1.39.2) operators, Knative, the CR's `orchestrator` flavour | Sample workflow `greeting` (prebuilt image); Notifications + Signals |
 | Dev Spaces | Argo CD: operator + CheCluster | `https://devspaces.<apps>`, sign-in through OpenShift (Keycloak), GitLab OAuth for clone/push; template repos get an *Open in Dev Spaces* link and a devfile |
-| Quay | Argo CD: Quay 3.17 + PostgreSQL + Redis as plain Deployments | **Demo-grade**: images on a PVC (LocalStorage); scanning switched on but no Clair yet, so tags show *Queued*; `https://quay.<apps>`, admin `quayadmin`; Quay tab in Developer Hub (no token: public repositories) |
+| Quay | Argo CD: Quay 3.17 + PostgreSQL + Redis as plain Deployments | **Demo-grade**: images on a PVC (LocalStorage); vulnerability scanning with Clair v4 (own PostgreSQL; data: Red Hat VEX, OSV, CVSS); `https://quay.<apps>`, admin `quayadmin`; Quay tab in Developer Hub (no token: public repositories) |
 
 Each of these three can be switched off with the root Application's toggles
 (`components.orchestrator`, `components.devSpaces`, `components.quay`).
@@ -190,8 +189,10 @@ seed commits; after your first commit the repo is yours.
 - The `demo-layer` Application runs in the `default` AppProject with the cluster-admin
   controller, so whoever can push to `demo/rhdh-demo-config` can change anything on the
   cluster. Keep that repo's write access to the people running the demo.
-- Quay is demo-grade: one pod, images on a PVC, no vulnerability scanning yet (Clair
-  is a to-do), new repositories public. Its admin credentials and an API token stay in
+- Quay is demo-grade: one pod, images on a PVC, new repositories public. Clair's first
+  load of the Red Hat VEX data is CPU-bound and takes well over an hour on a fresh cluster
+  (later updates are incremental); until then scans of UBI-based images show no
+  vulnerabilities. Start the cluster early before a demo that shows scan results. Its admin credentials and an API token stay in
   Secret `quay/quay-admin`; the Quay sync Job uses them, Developer Hub doesn't get a
   token. The token belongs to the OAuth application `rhdh-demo-automation` in
   organization `platform` (10 years; repository and organization admin scopes, user
