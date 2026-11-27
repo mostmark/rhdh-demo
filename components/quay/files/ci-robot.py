@@ -51,6 +51,8 @@ if code == 400 or code == 404 or not isinstance(robot, dict):
         raise SystemExit(f"robot {ROBOT}: HTTP {code} {robot!r}")
     print(f"ci-robot: created robot {robot['name']}")
 code, out = call("PUT", f"/organization/{ORG}/team/{TEAM}/members/{robot['name']}", {})
+if code == 400 and b"already a member" in (out or b""):
+    code = 200
 if code not in (200, 201):
     raise SystemExit(f"add {robot['name']} to {TEAM}: HTTP {code} {out!r}")
 auth = base64.b64encode(f"{robot['name']}:{robot['token']}".encode()).decode()

@@ -54,6 +54,14 @@ spec:
   template:
     metadata: {labels: {app: clair}}
     spec:
+      # Clair exits when its database isn't reachable yet; wait for it instead of crash-looping
+      initContainers:
+        - name: wait-for-db
+          image: {{ .Values.images.postgres }}
+          command: [/bin/bash, -c, 'until pg_isready -q -h clair-postgres -p 5432; do sleep 2; done']
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 64Mi}
       containers:
         - name: clair
           image: {{ .Values.images.clair }}

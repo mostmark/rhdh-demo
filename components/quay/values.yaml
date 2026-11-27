@@ -17,10 +17,11 @@ scanner:
   endpoint: http://clair:8080
 clair:
   enabled: true
-  # Clair updater sets (vulnerability sources): Red Hat (RHEL/UBI packages, Red Hat container
-  # images) and OSV (Java/npm/Python... dependencies); enough for the demo's UBI-based images.
-  # The Clair default (all distributions) needs far more time and database space.
-  updaters: rhel rhcc osv
+  # Clair updater sets (vulnerability sources): rhel-vex (Red Hat VEX: RHEL/UBI packages and
+  # Red Hat container images), osv (Java/npm/Python... dependencies) and clair.cvss (CVSS
+  # scores); enough for the demo's UBI-based images. The Clair default (all distributions)
+  # needs far more time and database space. Unknown set names are silently ignored.
+  updaters: rhel-vex osv clair.cvss
   memoryLimit: 3Gi
 # OAuth application whose 10-year token (Secret quay-admin, key token) the demo layer's
 # Quay hook uses to create organizations and repositories and push images.
