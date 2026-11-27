@@ -2,4 +2,5 @@ appsDomain: ""                      # set by the root Application
 name: developer-hub                 # Backstage CR name; the URL is https://developer-hub.<appsDomain>
 pluginVolumeSize: 5Gi               # default 2Gi is too small for this plugin set (ENOSPC)
 gitlabDiscoveryGroup: development   # catalog-info.yaml files in this GitLab group are discovered
+demoLayerRepo: demo/rhdh-demo-config  # GitLab repo of the demo layer (Tech Radar data: tech-radar.json there)
 components: {}                      # set by the root Application (feature toggles)

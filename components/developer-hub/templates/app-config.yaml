@@ -94,6 +94,10 @@ data:
             schedule:
               frequency: {minutes: 15}
               timeout: {minutes: 5}
+    # Tech Radar data from the demo layer repo; a demo replaces tech-radar.json there (or sets
+    # techRadar.url in app-config-demo). The backend fails to start without a url.
+    techRadar:
+      url: https://gitlab.{{ .Values.appsDomain }}/{{ .Values.demoLayerRepo }}/-/blob/main/tech-radar.json
     {{- if (.Values.components | default dict).quay }}
     # Quay backend + frontend plugins; the demo's repositories are public, so no token
     quay:
